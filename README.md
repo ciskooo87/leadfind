@@ -203,6 +203,8 @@ Validar schema local:
 python scripts/check_migrations.py
 ```
 
+Sempre que novas tabelas/colunas forem adicionadas ao domínio, uma nova revisão Alembic deve acompanhar a mudança.
+
 ## Próximos passos
 1. criar adapters específicos por fonte real
 2. criar integração com cron/worker real

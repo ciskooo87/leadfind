@@ -14,6 +14,8 @@ EXPECTED_TABLES = {
     'raw_events',
     'signals',
     'lead_snapshots',
+    'webhook_targets',
+    'webhook_deliveries',
 }
 
 
