@@ -1,12 +1,12 @@
 from sqlalchemy.orm import Session
 
 from app.db.models import Company, LeadSnapshot, Signal
-from app.schemas.lead import LeadExecutiveRead, LeadRead
 from app.services.lead_formatter import format_executive_lead
 from app.services.scoring import score_company
+from app.services.webhooks import dispatch_snapshot_to_eligible_targets
 
 
-def generate_lead_snapshot(db: Session, company_id: int) -> LeadSnapshot:
+def generate_lead_snapshot(db: Session, company_id: int, auto_dispatch: bool = True) -> LeadSnapshot:
     company = db.get(Company, company_id)
     if not company:
         raise ValueError('Company not found')
@@ -32,4 +32,8 @@ def generate_lead_snapshot(db: Session, company_id: int) -> LeadSnapshot:
     db.add(snapshot)
     db.commit()
     db.refresh(snapshot)
+
+    if auto_dispatch:
+        dispatch_snapshot_to_eligible_targets(db, snapshot)
+
     return snapshot

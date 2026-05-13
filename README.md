@@ -183,6 +183,8 @@ python scripts/export_executive_lead.py 1 --format json --output exports/lead-1.
 ## Webhooks
 O sistema suporta targets de webhook para entrega automática ou manual de leads priorizados.
 
+Quando um novo lead snapshot é gerado, o sistema tenta entregar automaticamente para webhook targets ativos e elegíveis pelo critério de score/tier.
+
 Endpoints:
 - `GET /webhooks`
 - `POST /webhooks`

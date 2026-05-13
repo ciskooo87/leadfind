@@ -4,7 +4,6 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.db.models import LeadSnapshot, WebhookDelivery, WebhookTarget
-from app.schemas.lead import LeadExecutiveRead
 from app.schemas.webhook import WebhookTargetCreate
 
 
@@ -29,13 +28,17 @@ def list_webhook_deliveries(db: Session, target_id: int) -> list[WebhookDelivery
     return db.query(WebhookDelivery).filter(WebhookDelivery.webhook_target_id == target_id).order_by(WebhookDelivery.created_at.desc()).all()
 
 
+def _target_accepts_snapshot(target: WebhookTarget, snapshot: LeadSnapshot) -> bool:
+    tier_set = {tier.strip() for tier in target.lead_tiers.split(',') if tier.strip()}
+    return snapshot.score >= target.min_score and snapshot.lead_tier in tier_set
+
+
 def deliver_lead_snapshot(db: Session, target: WebhookTarget, snapshot: LeadSnapshot) -> WebhookDelivery:
     if not snapshot.executive_payload:
         raise ValueError('Lead snapshot sem payload executivo')
 
     payload = json.loads(snapshot.executive_payload)
-    tier_set = {tier.strip() for tier in target.lead_tiers.split(',') if tier.strip()}
-    if snapshot.score < target.min_score or snapshot.lead_tier not in tier_set:
+    if not _target_accepts_snapshot(target, snapshot):
         delivery = WebhookDelivery(
             webhook_target_id=target.id,
             company_id=snapshot.company_id,
@@ -89,4 +92,13 @@ def dispatch_latest_leads(db: Session, target: WebhookTarget, limit: int = 20) -
             continue
         seen_company_ids.add(snapshot.company_id)
         deliveries.append(deliver_lead_snapshot(db, target, snapshot))
+    return deliveries
+
+
+def dispatch_snapshot_to_eligible_targets(db: Session, snapshot: LeadSnapshot) -> list[WebhookDelivery]:
+    targets = db.query(WebhookTarget).filter(WebhookTarget.active.is_(True)).order_by(WebhookTarget.created_at.asc()).all()
+    deliveries: list[WebhookDelivery] = []
+    for target in targets:
+        if _target_accepts_snapshot(target, snapshot):
+            deliveries.append(deliver_lead_snapshot(db, target, snapshot))
     return deliveries
