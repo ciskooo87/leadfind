@@ -1,5 +1,6 @@
 from collections import Counter
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from app.data.signal_weights import PRIORITY_SECTORS, SIGNAL_WEIGHTS
 from app.db.models import Company, Signal
@@ -19,10 +20,32 @@ class ScoreResult:
     score_explanation: str
 
 
+def _signal_age_days(signal: Signal) -> int:
+    detected_at = signal.detected_at
+    if detected_at.tzinfo is None:
+        detected_at = detected_at.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    return max((now - detected_at).days, 0)
+
+
+def _recency_multiplier(signal: Signal) -> float:
+    age_days = _signal_age_days(signal)
+    if age_days <= 30:
+        return 1.0
+    if age_days <= 60:
+        return 0.9
+    if age_days <= 90:
+        return 0.75
+    if age_days <= 120:
+        return 0.6
+    return 0.45
+
+
 def _base_weight(signal: Signal) -> float:
     category_map = SIGNAL_WEIGHTS.get(signal.category, {})
     weight = signal.weight_override if signal.weight_override is not None else category_map.get(signal.signal_type, 3)
-    return weight * max(min(signal.confidence, 1.0), 0.1)
+    confidence = max(min(signal.confidence, 1.0), 0.1)
+    return weight * confidence * _recency_multiplier(signal)
 
 
 def _sector_bonus(sector: str | None) -> float:
@@ -94,7 +117,9 @@ def score_company(company: Company, signals: list[Signal]) -> ScoreResult:
     sector_bonus = _sector_bonus(company.sector)
     size_bonus = _size_adjustment(company.estimated_size)
     signal_density_bonus = 10 if len(signals) >= 3 else 0
-    raw_score = weighted_sum + sector_bonus + size_bonus + signal_density_bonus
+    recent_signals_count = sum(1 for signal in signals if _signal_age_days(signal) <= 60)
+    evidence_bonus = 5 if recent_signals_count >= 2 else 0
+    raw_score = weighted_sum + sector_bonus + size_bonus + signal_density_bonus + evidence_bonus
     score = round(min(raw_score, 100), 2)
 
     signal_counter = Counter(signal.signal_type for signal in signals)
@@ -127,8 +152,8 @@ def score_company(company: Company, signals: list[Signal]) -> ScoreResult:
 
     risk = "baixo" if score >= 81 else "médio" if score >= 61 else "alto"
     explanation = (
-        f"weighted_sum={round(weighted_sum, 2)}; sector_bonus={sector_bonus}; "
-        f"size_adjustment={size_bonus}; signal_density_bonus={signal_density_bonus}; final_score={score}"
+        f"weighted_sum={round(weighted_sum, 2)}; sector_bonus={sector_bonus}; size_adjustment={size_bonus}; "
+        f"signal_density_bonus={signal_density_bonus}; evidence_bonus={evidence_bonus}; recent_signals_count={recent_signals_count}; final_score={score}"
     )
 
     return ScoreResult(

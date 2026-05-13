@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -26,6 +26,9 @@ class Company(Base):
 
 class Signal(Base):
     __tablename__ = "signals"
+    __table_args__ = (
+        UniqueConstraint("company_id", "signal_type", "source_name", "source_url", name="uq_signal_dedupe"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
@@ -74,6 +77,9 @@ class Source(Base):
 
 class RawEvent(Base):
     __tablename__ = "raw_events"
+    __table_args__ = (
+        UniqueConstraint("source_id", "external_id", name="uq_raw_event_source_external"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"), index=True)
@@ -87,7 +93,7 @@ class RawEvent(Base):
     state_raw: Mapped[str | None] = mapped_column(String(10), nullable=True)
     occurred_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
     normalized_status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
-    normalized_signal_type: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    normalized_signal_type: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     confidence: Mapped[float] = mapped_column(Float, default=0.7)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

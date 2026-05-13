@@ -13,6 +13,7 @@ from app.schemas.source import SourceRead
 from app.services.bootstrap import seed_sources
 from app.services.ingestion import ingest_raw_events
 from app.services.normalization import normalize_raw_event
+from app.services.payloads import to_db_payload
 from app.services.scoring import score_company
 
 Base.metadata.create_all(bind=engine)
@@ -34,7 +35,7 @@ def list_sources(db: Session = Depends(get_db)):
 
 @router.post("/companies", response_model=CompanyRead)
 def create_company(payload: CompanyCreate, db: Session = Depends(get_db)):
-    data = payload.model_dump(mode="json")
+    data = to_db_payload(payload.model_dump(mode="python"))
     company = Company(**data)
     db.add(company)
     db.commit()
@@ -48,7 +49,7 @@ def create_signal(payload: SignalCreate, db: Session = Depends(get_db)):
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 
-    data = payload.model_dump(mode="json")
+    data = to_db_payload(payload.model_dump(mode="python"))
     signal = Signal(**data)
     db.add(signal)
     db.commit()
@@ -63,7 +64,16 @@ def create_raw_event(payload: RawEventCreate, db: Session = Depends(get_db)):
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
 
-    data = payload.model_dump(mode="json")
+    if payload.external_id:
+        existing = (
+            db.query(RawEvent)
+            .filter(RawEvent.source_id == source.id, RawEvent.external_id == payload.external_id)
+            .first()
+        )
+        if existing:
+            return existing
+
+    data = to_db_payload(payload.model_dump(mode="python"))
     data.pop("source_name")
     raw_event = RawEvent(source_id=source.id, **data)
     db.add(raw_event)

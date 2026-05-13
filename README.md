@@ -68,10 +68,16 @@ Formato JSONL esperado: um evento por linha, com pelo menos:
 - `source_name`
 - `content`
 
+## Regras atuais do pipeline
+- evita reimportar `raw_events` duplicados por `source + external_id`
+- evita criar `signals` repetidos da mesma evidência
+- aplica peso de recência no score
+- adiciona bônus por evidência recente cruzada
+
 ## Próximos passos
 1. adicionar migrações
 2. criar conectores reais de coleta
 3. reforçar deduplicação por CNPJ raiz/domínio
 4. criar fila de coleta e normalização
 5. exportação para CRM/webhooks
-6. enriquecer score com recência e evidência cruzada
+6. ampliar entity resolution com domínio/site/CNPJ

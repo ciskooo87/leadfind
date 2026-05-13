@@ -44,6 +44,20 @@ def infer_signals_from_job_text(text: str) -> list[tuple[str, str, float]]:
     return inferred
 
 
+def _signal_exists(db: Session, company_id: int, signal_type: str, source_name: str, source_url: str | None) -> bool:
+    return (
+        db.query(Signal)
+        .filter(
+            Signal.company_id == company_id,
+            Signal.signal_type == signal_type,
+            Signal.source_name == source_name,
+            Signal.source_url == source_url,
+        )
+        .first()
+        is not None
+    )
+
+
 def normalize_raw_event(db: Session, raw_event: RawEvent) -> RawEvent:
     source = db.get(Source, raw_event.source_id)
     company = resolve_company(db, raw_event)
@@ -60,7 +74,10 @@ def normalize_raw_event(db: Session, raw_event: RawEvent) -> RawEvent:
         raw_event.confidence = max(raw_event.confidence, max(conf for _, _, conf in inferred_signals))
 
         if company:
+            created_any = False
             for category, signal_type, inferred_confidence in inferred_signals:
+                if _signal_exists(db, company.id, signal_type, source.name, raw_event.source_url):
+                    continue
                 signal = Signal(
                     company_id=company.id,
                     category=category,
@@ -72,7 +89,8 @@ def normalize_raw_event(db: Session, raw_event: RawEvent) -> RawEvent:
                     confidence=min((max(raw_event.confidence, inferred_confidence) + source.reliability_score) / 2, 1.0),
                 )
                 db.add(signal)
-            raw_event.normalized_status = "signal_created"
+                created_any = True
+            raw_event.normalized_status = "signal_created" if created_any else "duplicate_signal"
     else:
         raw_event.normalized_status = "ignored"
 
