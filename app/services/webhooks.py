@@ -9,7 +9,9 @@ from app.schemas.webhook import WebhookTargetCreate
 
 
 def create_webhook_target(db: Session, payload: WebhookTargetCreate) -> WebhookTarget:
-    target = WebhookTarget(**payload.model_dump(mode='python'))
+    data = payload.model_dump(mode='python')
+    data['target_url'] = str(data['target_url'])
+    target = WebhookTarget(**data)
     db.add(target)
     db.commit()
     db.refresh(target)
