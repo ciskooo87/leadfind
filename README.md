@@ -73,6 +73,7 @@ Formato JSONL esperado: um evento por linha, com pelo menos:
 - evita criar `signals` repetidos da mesma evidência
 - aplica peso de recência no score
 - adiciona bônus por evidência recente cruzada
+- aplica bônus multi-fonte entre jobs, notícias e jurídico
 - resolve empresa por CNPJ, domínio/site, nome e contexto geográfico
 
 ## Endpoints adicionais

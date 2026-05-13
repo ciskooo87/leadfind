@@ -88,14 +88,110 @@ def _tier(score: float) -> str:
     return "D"
 
 
-def _product_recommendation(counter: Counter) -> str:
-    if counter["explicit_credit_search"] or counter["financial_restructuring"]:
-        return "crédito estruturado"
+def _source_buckets(signals: list[Signal]) -> dict[str, int]:
+    counts = {"jobs": 0, "news": 0, "legal": 0, "other": 0}
+    for signal in signals:
+        source_name = signal.source_name.lower()
+        if source_name in {"linkedin jobs", "indeed", "gupy", "corporate careers"}:
+            counts["jobs"] += 1
+        elif source_name in {"notícias regionais", "noticias regionais"}:
+            counts["news"] += 1
+        elif source_name in {"jusbrasil"}:
+            counts["legal"] += 1
+        else:
+            counts["other"] += 1
+    return counts
+
+
+def _cross_source_bonus(source_buckets: dict[str, int], counter: Counter) -> tuple[float, list[str]]:
+    bonus = 0.0
+    reasons: list[str] = []
+
+    if source_buckets["jobs"] and source_buckets["news"]:
+        bonus += 8
+        reasons.append("jobs+news")
+    if source_buckets["jobs"] and source_buckets["legal"]:
+        bonus += 12
+        reasons.append("jobs+legal")
+    if source_buckets["news"] and source_buckets["legal"]:
+        bonus += 15
+        reasons.append("news+legal")
+    if source_buckets["jobs"] and source_buckets["news"] and source_buckets["legal"]:
+        bonus += 10
+        reasons.append("jobs+news+legal")
+
+    if counter["financial_restructuring"] and counter["judicial_recovery_signal"]:
+        bonus += 10
+        reasons.append("restructuring+judicial_recovery")
+    if counter["new_branch"] and counter["controller_hiring"]:
+        bonus += 6
+        reasons.append("expansion+financial_hiring")
+    if counter["new_distribution_center"] and counter["treasury_hiring"]:
+        bonus += 6
+        reasons.append("distribution+treasury")
+    if counter["execution_process"] and counter["legal_collection_growth"]:
+        bonus += 8
+        reasons.append("execution+collection")
+
+    return bonus, reasons
+
+
+def _product_recommendation(counter: Counter, source_buckets: dict[str, int], score: float) -> str:
+    if counter["judicial_recovery_signal"] or counter["financial_restructuring"]:
+        return "crédito estruturado / reestruturação financeira"
+    if source_buckets["legal"] and source_buckets["news"]:
+        return "capital de giro estruturado / FIDC performado"
     if counter["erp_change"] or counter["erp_implementation"]:
         return "ERP financeiro / automação financeira"
-    if counter["new_branch"] or counter["fleet_expansion"] or counter["geographic_expansion"]:
+    if counter["new_branch"] or counter["fleet_expansion"] or counter["geographic_expansion"] or counter["new_distribution_center"]:
         return "antecipação de recebíveis / FIDC performado"
+    if source_buckets["legal"] and score >= 55:
+        return "factoring consultivo / crédito com análise reforçada"
     return "consultoria financeira + capital de giro"
+
+
+def _pain_and_approach(counter: Counter, source_buckets: dict[str, int]) -> tuple[str, str, str]:
+    if counter["judicial_recovery_signal"] or counter["financial_restructuring"]:
+        return (
+            "Sinais jurídicos e financeiros sugerem estresse relevante, possível deterioração de caixa e necessidade de reestruturação.",
+            "Abordagem consultiva sênior, focada em solução estruturada, governança e proteção de liquidez.",
+            "imediato, antes de agravamento do quadro"
+        )
+    if source_buckets["news"] and source_buckets["jobs"]:
+        return (
+            "Expansão operacional acompanhada de reforço administrativo/financeiro sugere descasamento entre crescimento e caixa.",
+            "Abordagem orientada a funding do crescimento, previsibilidade de recebíveis e eficiência operacional.",
+            "imediato, enquanto a expansão ainda está sendo absorvida"
+        )
+    if source_buckets["legal"]:
+        return (
+            "Pressão jurídica indica tensão financeira, cobrança crescente ou perda de controle do ciclo de pagamentos.",
+            "Abordagem cuidadosa, consultiva e baseada em estabilização financeira e alternativas de liquidez.",
+            "curto prazo, com sensibilidade comercial"
+        )
+    if counter["new_branch"] or counter["fleet_expansion"] or counter["geographic_expansion"] or counter["new_distribution_center"]:
+        return (
+            "Expansão operacional pode estar pressionando caixa, frota, estoque ou ciclo de recebimento.",
+            "Abordagem consultiva orientada a funding para crescimento sem travar a operação.",
+            "imediato, enquanto a expansão ainda está sendo absorvida"
+        )
+    if counter["controller_hiring"] or counter["treasury_hiring"] or counter["collections_hiring"]:
+        return (
+            "Reforço financeiro sugere dor de controle, previsibilidade de caixa ou cobrança.",
+            "Abordagem focada em previsibilidade financeira, recebíveis e governança de caixa.",
+            "curto prazo, antes de a empresa estabilizar o novo time"
+        )
+    if counter["erp_change"] or counter["erp_implementation"]:
+        return (
+            "Mudança de stack indica janela de transformação administrativa e financeira.",
+            "Oferta de eficiência operacional e integração de crédito/recebíveis com stack financeira.",
+            "durante a implantação ou seleção de fornecedores"
+        )
+    return (
+        "Sinais sugerem necessidade potencial, mas ainda difusa entre operação e finanças.",
+        "Abordagem leve, validando contexto e prioridade financeira.",
+        "após confirmação de novo sinal forte"
+    )
 
 
 def score_company(company: Company, signals: list[Signal]) -> ScoreResult:
@@ -119,41 +215,36 @@ def score_company(company: Company, signals: list[Signal]) -> ScoreResult:
     signal_density_bonus = 10 if len(signals) >= 3 else 0
     recent_signals_count = sum(1 for signal in signals if _signal_age_days(signal) <= 60)
     evidence_bonus = 5 if recent_signals_count >= 2 else 0
-    raw_score = weighted_sum + sector_bonus + size_bonus + signal_density_bonus + evidence_bonus
+    signal_counter = Counter(signal.signal_type for signal in signals)
+    source_buckets = _source_buckets(signals)
+    cross_source_bonus, cross_reasons = _cross_source_bonus(source_buckets, signal_counter)
+
+    raw_score = weighted_sum + sector_bonus + size_bonus + signal_density_bonus + evidence_bonus + cross_source_bonus
     score = round(min(raw_score, 100), 2)
 
-    signal_counter = Counter(signal.signal_type for signal in signals)
-    top_signals = ", ".join(signal.signal_type for signal in signals[:5])
-    product = _product_recommendation(signal_counter)
+    top_signals = ", ".join(signal.signal_type for signal in signals[:6])
     conversion = _conversion_label(score)
     tier = _tier(score)
+    product = _product_recommendation(signal_counter, source_buckets, score)
+    pain, approach, timing = _pain_and_approach(signal_counter, source_buckets)
 
     summary = (
         f"Empresa com {len(signals)} sinais monitorados. Principais gatilhos detectados: {top_signals}. "
+        f"Distribuição por fonte: jobs={source_buckets['jobs']}, news={source_buckets['news']}, legal={source_buckets['legal']}. "
         f"Score calculado em {score}, sugerindo probabilidade {conversion} de necessidade de capital ou eficiência financeira."
     )
 
-    if signal_counter["new_branch"] or signal_counter["fleet_expansion"] or signal_counter["geographic_expansion"]:
-        pain = "Expansão operacional pode estar pressionando caixa, frota, estoque ou ciclo de recebimento."
-        approach = "Abordagem consultiva orientada a funding para crescimento sem travar a operação."
-        timing = "imediato, enquanto a expansão ainda está sendo absorvida"
-    elif signal_counter["controller_hiring"] or signal_counter["treasury_hiring"] or signal_counter["collections_hiring"]:
-        pain = "Reforço financeiro sugere dor de controle, previsibilidade de caixa ou cobrança."
-        approach = "Abordagem focada em previsibilidade financeira, recebíveis e governança de caixa."
-        timing = "curto prazo, antes de a empresa estabilizar o novo time"
-    elif signal_counter["erp_change"] or signal_counter["erp_implementation"]:
-        pain = "Mudança de stack indica janela de transformação administrativa e financeira."
-        approach = "Oferta de eficiência operacional e integração de crédito/recebíveis com stack financeira."
-        timing = "durante a implantação ou seleção de fornecedores"
+    if score >= 81:
+        risk = "baixo"
+    elif score >= 61:
+        risk = "médio"
     else:
-        pain = "Sinais sugerem necessidade potencial, mas ainda difusa entre operação e finanças."
-        approach = "Abordagem leve, validando contexto e prioridade financeira."
-        timing = "após confirmação de novo sinal forte"
+        risk = "alto"
 
-    risk = "baixo" if score >= 81 else "médio" if score >= 61 else "alto"
     explanation = (
         f"weighted_sum={round(weighted_sum, 2)}; sector_bonus={sector_bonus}; size_adjustment={size_bonus}; "
-        f"signal_density_bonus={signal_density_bonus}; evidence_bonus={evidence_bonus}; recent_signals_count={recent_signals_count}; final_score={score}"
+        f"signal_density_bonus={signal_density_bonus}; evidence_bonus={evidence_bonus}; cross_source_bonus={cross_source_bonus}; "
+        f"recent_signals_count={recent_signals_count}; source_buckets={source_buckets}; cross_reasons={cross_reasons}; final_score={score}"
     )
 
     return ScoreResult(
