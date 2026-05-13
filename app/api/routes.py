@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -6,7 +8,7 @@ from app.db.base import Base
 from app.db.models import Company, LeadSnapshot, RawEvent, Signal, Source
 from app.db.session import engine
 from app.schemas.company import CompanyCreate, CompanyMatchRequest, CompanyRead
-from app.schemas.lead import LeadRead
+from app.schemas.lead import LeadExecutiveRead, LeadRead
 from app.schemas.legal import GenericHtmlLegalCollectRequest
 from app.schemas.news import GenericHtmlNewsCollectRequest
 from app.schemas.provider import GenericHtmlJobsCollectRequest, JsonJobsCollectRequest, JsonLdJobsCollectRequest
@@ -16,6 +18,7 @@ from app.schemas.source import SourceRead
 from app.services.bootstrap import seed_sources
 from app.services.company_resolution import match_company
 from app.services.ingestion import ingest_raw_events
+from app.services.lead_formatter import format_executive_lead
 from app.services.legal_ingestion import collect_generic_html_legal
 from app.services.news_ingestion import collect_generic_html_news
 from app.services.normalization import normalize_raw_event
@@ -26,6 +29,23 @@ from app.services.scoring import score_company
 Base.metadata.create_all(bind=engine)
 
 router = APIRouter()
+
+
+def _build_lead_read(snapshot: LeadSnapshot) -> LeadRead:
+    return LeadRead(
+        company_id=snapshot.company_id,
+        score=snapshot.score,
+        conversion_probability=snapshot.conversion_probability,
+        lead_tier=snapshot.lead_tier,
+        summary=snapshot.summary,
+        hypothesis_of_pain=snapshot.hypothesis_of_pain,
+        best_approach=snapshot.best_approach,
+        recommended_product=snapshot.recommended_product,
+        timing=snapshot.timing,
+        risk=snapshot.risk,
+        score_explanation=snapshot.score_explanation,
+        created_at=snapshot.created_at,
+    )
 
 
 @router.get("/health")
@@ -166,6 +186,7 @@ def generate_lead(company_id: int, db: Session = Depends(get_db)):
 
     signals = db.query(Signal).filter(Signal.company_id == company_id).order_by(Signal.detected_at.desc()).all()
     result = score_company(company, signals)
+    executive_lead = format_executive_lead(company, signals, result)
 
     snapshot = LeadSnapshot(
         company_id=company_id,
@@ -179,44 +200,38 @@ def generate_lead(company_id: int, db: Session = Depends(get_db)):
         timing=result.timing,
         risk=result.risk,
         score_explanation=result.score_explanation,
+        executive_payload=executive_lead.model_dump_json(),
     )
     db.add(snapshot)
     db.commit()
     db.refresh(snapshot)
 
-    return LeadRead(
-        company_id=snapshot.company_id,
-        score=snapshot.score,
-        conversion_probability=snapshot.conversion_probability,
-        lead_tier=snapshot.lead_tier,
-        summary=snapshot.summary,
-        hypothesis_of_pain=snapshot.hypothesis_of_pain,
-        best_approach=snapshot.best_approach,
-        recommended_product=snapshot.recommended_product,
-        timing=snapshot.timing,
-        risk=snapshot.risk,
-        score_explanation=snapshot.score_explanation,
-        created_at=snapshot.created_at,
-    )
+    return _build_lead_read(snapshot)
 
 
 @router.get("/leads/{company_id}", response_model=list[LeadRead])
 def list_leads(company_id: int, db: Session = Depends(get_db)):
     snapshots = db.query(LeadSnapshot).filter(LeadSnapshot.company_id == company_id).order_by(LeadSnapshot.created_at.desc()).all()
-    return [
-        LeadRead(
-            company_id=s.company_id,
-            score=s.score,
-            conversion_probability=s.conversion_probability,
-            lead_tier=s.lead_tier,
-            summary=s.summary,
-            hypothesis_of_pain=s.hypothesis_of_pain,
-            best_approach=s.best_approach,
-            recommended_product=s.recommended_product,
-            timing=s.timing,
-            risk=s.risk,
-            score_explanation=s.score_explanation,
-            created_at=s.created_at,
-        )
-        for s in snapshots
-    ]
+    return [_build_lead_read(s) for s in snapshots]
+
+
+@router.get("/leads/{company_id}/executive", response_model=LeadExecutiveRead)
+def get_latest_executive_lead(company_id: int, db: Session = Depends(get_db)):
+    snapshot = (
+        db.query(LeadSnapshot)
+        .filter(LeadSnapshot.company_id == company_id)
+        .order_by(LeadSnapshot.created_at.desc())
+        .first()
+    )
+    if not snapshot:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    if snapshot.executive_payload:
+        return LeadExecutiveRead(**json.loads(snapshot.executive_payload))
+
+    company = db.get(Company, company_id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    signals = db.query(Signal).filter(Signal.company_id == company_id).order_by(Signal.detected_at.desc()).all()
+    result = score_company(company, signals)
+    return format_executive_lead(company, signals, result)

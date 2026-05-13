@@ -59,6 +59,7 @@ class LeadSnapshot(Base):
     timing: Mapped[str] = mapped_column(String(120), nullable=False)
     risk: Mapped[str] = mapped_column(String(120), nullable=False)
     score_explanation: Mapped[str] = mapped_column(Text, nullable=False)
+    executive_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
