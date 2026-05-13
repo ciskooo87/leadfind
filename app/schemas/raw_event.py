@@ -15,6 +15,11 @@ class RawEventCreate(BaseModel):
     confidence: float = 0.7
 
 
+class RawEventBatchCreate(BaseModel):
+    events: list[RawEventCreate]
+    normalize_after_insert: bool = True
+
+
 class RawEventRead(BaseModel):
     id: int
     source_id: int

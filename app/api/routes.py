@@ -7,10 +7,11 @@ from app.db.models import Company, LeadSnapshot, RawEvent, Signal, Source
 from app.db.session import engine
 from app.schemas.company import CompanyCreate, CompanyRead
 from app.schemas.lead import LeadRead
-from app.schemas.raw_event import RawEventCreate, RawEventRead
+from app.schemas.raw_event import RawEventBatchCreate, RawEventCreate, RawEventRead
 from app.schemas.signal import SignalCreate, SignalRead
 from app.schemas.source import SourceRead
 from app.services.bootstrap import seed_sources
+from app.services.ingestion import ingest_raw_events
 from app.services.normalization import normalize_raw_event
 from app.services.scoring import score_company
 
@@ -69,6 +70,14 @@ def create_raw_event(payload: RawEventCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(raw_event)
     return raw_event
+
+
+@router.post("/raw-events/batch", response_model=list[RawEventRead])
+def create_raw_events_batch(payload: RawEventBatchCreate, db: Session = Depends(get_db)):
+    try:
+        return ingest_raw_events(db, payload.events, normalize_after_insert=payload.normalize_after_insert)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/raw-events/{raw_event_id}/normalize", response_model=RawEventRead)

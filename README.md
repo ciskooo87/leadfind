@@ -53,6 +53,21 @@ uvicorn app.main:app --reload
 4. inferir um ou mais sinais de intenção
 5. gerar lead com score explicável
 
+## Importação em lote de vagas
+Via API:
+```bash
+POST /raw-events/batch
+```
+
+Via script:
+```bash
+python scripts/import_jobs.py sample_jobs.jsonl
+```
+
+Formato JSONL esperado: um evento por linha, com pelo menos:
+- `source_name`
+- `content`
+
 ## Próximos passos
 1. adicionar migrações
 2. criar conectores reais de coleta
