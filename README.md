@@ -19,6 +19,7 @@ Este repositório começa com um backend FastAPI focado em:
 - SQLAlchemy
 - Pydantic
 - SQLite para desenvolvimento inicial
+- Alembic para migrações
 
 ## Estrutura
 - `app/api`: rotas HTTP
@@ -27,12 +28,14 @@ Este repositório começa com um backend FastAPI focado em:
 - `app/services`: regra de negócio
 - `app/schemas`: contratos da API
 - `app/data`: taxonomias e pesos iniciais
+- `alembic`: migrações de banco
 
 ## Rodando localmente
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+python scripts/migrate.py
 uvicorn app.main:app --reload
 ```
 
@@ -42,9 +45,11 @@ uvicorn app.main:app --reload
 - `POST /companies`
 - `POST /signals`
 - `POST /raw-events`
+- `POST /raw-events/batch`
 - `POST /raw-events/{raw_event_id}/normalize`
 - `POST /leads/generate/{company_id}`
 - `GET /leads/{company_id}`
+- `GET /leads/{company_id}/executive`
 
 ## Pipeline atual do MVP
 1. cadastrar empresa
@@ -153,10 +158,34 @@ Ao executar uma watchlist, o sistema agora:
 5. atualiza o ranking operacional
 6. grava histórico de execução com status, eventos, leads e empresas impactadas
 
+## Exportação
+O sistema suporta exportação de:
+- ranking em JSON/CSV
+- lead executivo em JSON/CSV
+
+Via scripts:
+```bash
+python scripts/export_ranking.py --format csv --output exports/ranking.csv
+python scripts/export_executive_lead.py 1 --format json --output exports/lead-1.json
+```
+
+## Migrações
+O schema agora é gerido por Alembic.
+
+Aplicar migrações:
+```bash
+python scripts/migrate.py
+```
+
+Validar schema local:
+```bash
+python scripts/check_migrations.py
+```
+
 ## Próximos passos
-1. adicionar migrações
-2. criar adapters específicos por fonte real
-3. criar fila/agenda de execução automática
-4. exportação para CRM/webhooks
-5. ampliar entity resolution com similaridade/fuzzy score
-6. painel operacional de monitoramento
+1. criar adapters específicos por fonte real
+2. criar integração com cron/worker real
+3. exportação para webhook/CRM
+4. ampliar entity resolution com similaridade/fuzzy score
+5. painel operacional de monitoramento
+6. testes automatizados mais abrangentes

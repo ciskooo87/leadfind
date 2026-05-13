@@ -33,8 +33,6 @@ from app.services.provider_ingestion import collect_generic_html_jobs, collect_j
 from app.services.scoring import score_company
 from app.services.watchlists import create_watchlist, list_watchlist_runs, list_watchlists, run_due_watchlists, run_watchlist
 
-Base.metadata.create_all(bind=engine)
-
 router = APIRouter()
 
 
