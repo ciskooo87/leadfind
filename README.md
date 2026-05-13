@@ -213,10 +213,22 @@ python scripts/check_migrations.py
 
 Sempre que novas tabelas/colunas forem adicionadas ao domínio, uma nova revisão Alembic deve acompanhar a mudança.
 
+## Testes
+Rodar a suíte inicial:
+```bash
+pytest -q
+```
+
+Cobertura inicial inclui:
+- geração de lead executivo e ranking
+- watchlists com geração automática de leads
+- auto-dispatch de webhooks
+- adapter Gupy básico
+
 ## Próximos passos
-1. criar adapters específicos por fonte real
-2. criar integração com cron/worker real
-3. exportação para webhook/CRM
-4. ampliar entity resolution com similaridade/fuzzy score
-5. painel operacional de monitoramento
-6. testes automatizados mais abrangentes
+1. criar adapters específicos adicionais por fonte real
+2. ampliar entity resolution com similaridade/fuzzy score
+3. painel operacional de monitoramento
+4. testes automatizados mais abrangentes
+5. observabilidade e alertas operacionais
+6. retry/idempotência de webhook
