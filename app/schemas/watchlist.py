@@ -26,4 +26,6 @@ class WatchlistRead(BaseModel):
 class WatchlistRunResult(BaseModel):
     watchlist_id: int
     created_events: int
+    generated_leads: int
+    impacted_company_ids: list[int]
     detail: str

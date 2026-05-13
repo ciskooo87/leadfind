@@ -21,6 +21,7 @@ from app.services.bootstrap import seed_sources
 from app.services.company_resolution import match_company
 from app.services.ingestion import ingest_raw_events
 from app.services.lead_formatter import format_executive_lead
+from app.services.lead_generation import generate_lead_snapshot
 from app.services.lead_ranking import rank_latest_leads
 from app.services.legal_ingestion import collect_generic_html_legal
 from app.services.news_ingestion import collect_generic_html_news
@@ -220,28 +221,7 @@ def generate_lead(company_id: int, db: Session = Depends(get_db)):
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 
-    signals = db.query(Signal).filter(Signal.company_id == company_id).order_by(Signal.detected_at.desc()).all()
-    result = score_company(company, signals)
-    executive_lead = format_executive_lead(company, signals, result)
-
-    snapshot = LeadSnapshot(
-        company_id=company_id,
-        score=result.score,
-        conversion_probability=result.conversion_probability,
-        lead_tier=result.lead_tier,
-        summary=result.summary,
-        hypothesis_of_pain=result.hypothesis_of_pain,
-        best_approach=result.best_approach,
-        recommended_product=result.recommended_product,
-        timing=result.timing,
-        risk=result.risk,
-        score_explanation=result.score_explanation,
-        executive_payload=executive_lead.model_dump_json(),
-    )
-    db.add(snapshot)
-    db.commit()
-    db.refresh(snapshot)
-
+    snapshot = generate_lead_snapshot(db, company_id)
     return _build_lead_read(snapshot)
 
 

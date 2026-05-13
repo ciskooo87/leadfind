@@ -140,6 +140,13 @@ Cada watchlist guarda:
 - status ativo/inativo
 - timestamp da última execução
 
+Ao executar uma watchlist, o sistema agora:
+1. coleta eventos
+2. normaliza os sinais
+3. identifica empresas impactadas
+4. gera snapshots de lead automaticamente
+5. atualiza o ranking operacional
+
 ## Próximos passos
 1. adicionar migrações
 2. criar adapters específicos por fonte real
