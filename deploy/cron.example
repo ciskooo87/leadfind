@@ -1,0 +1,2 @@
+# Execute a cada 15 minutos
+*/15 * * * * cd /home/openclaw/.openclaw/workspace/leadfind && /usr/bin/env bash scripts/run_due_watchlists_once.sh >> /home/openclaw/.openclaw/workspace/leadfind/exports/watchlist-runner.log 2>&1
