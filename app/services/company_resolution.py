@@ -3,7 +3,7 @@ from urllib.parse import urlparse
 from sqlalchemy.orm import Session
 
 from app.db.models import Company
-from app.services.normalization import normalize_text
+from app.services.text_utils import normalize_text
 
 
 LEGAL_SUFFIXES = {

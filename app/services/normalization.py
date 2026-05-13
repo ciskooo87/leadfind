@@ -1,20 +1,9 @@
-import re
-import unicodedata
-
 from sqlalchemy.orm import Session
 
 from app.data.signal_taxonomy import JOB_SIGNAL_RULES
 from app.db.models import RawEvent, Signal, Source
 from app.services.company_resolution import match_company
-
-
-def normalize_text(value: str | None) -> str:
-    if not value:
-        return ""
-    value = unicodedata.normalize("NFKD", value)
-    value = "".join(ch for ch in value if not unicodedata.combining(ch))
-    value = value.lower().strip()
-    return re.sub(r"\s+", " ", value)
+from app.services.text_utils import normalize_text
 
 
 def infer_signals_from_job_text(text: str) -> list[tuple[str, str, float]]:

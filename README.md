@@ -73,11 +73,15 @@ Formato JSONL esperado: um evento por linha, com pelo menos:
 - evita criar `signals` repetidos da mesma evidência
 - aplica peso de recência no score
 - adiciona bônus por evidência recente cruzada
+- resolve empresa por CNPJ, domínio/site, nome e contexto geográfico
+
+## Endpoints adicionais
+- `POST /companies/match`
 
 ## Próximos passos
 1. adicionar migrações
 2. criar conectores reais de coleta
-3. reforçar deduplicação por CNPJ raiz/domínio
-4. criar fila de coleta e normalização
-5. exportação para CRM/webhooks
-6. ampliar entity resolution com domínio/site/CNPJ
+3. criar fila de coleta e normalização
+4. exportação para CRM/webhooks
+5. ampliar entity resolution com similaridade/fuzzy score
+6. plugar fontes reais de vagas e notícias
