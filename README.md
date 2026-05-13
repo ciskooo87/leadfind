@@ -78,6 +78,7 @@ Formato JSONL esperado: um evento por linha, com pelo menos:
 ## Endpoints adicionais
 - `POST /companies/match`
 - `POST /providers/generic-html-jobs/collect`
+- `POST /providers/json-jobs/collect`
 
 ## Coleta via provider HTML genérico
 Esse provider permite apontar para uma página HTML com vagas e informar seletores CSS para extrair:
@@ -89,7 +90,18 @@ Esse provider permite apontar para uma página HTML com vagas e informar seletor
 - link da vaga
 - site da empresa
 
-Útil para MVPs, páginas estruturadas e testes controlados antes de criar adapters específicos por fonte.
+## Coleta via provider JSON
+Esse provider permite consumir feeds estruturados em JSON, informando paths como:
+- lista de itens
+- título
+- descrição
+- empresa
+- cidade/UF
+- URL da vaga
+- site da empresa
+- ID externo
+
+Útil para integrações mais estáveis do que scraping HTML.
 
 ## Próximos passos
 1. adicionar migrações

@@ -1,0 +1,32 @@
+{
+  "jobs": [
+    {
+      "id": "feed-001",
+      "title": "Controller Financeiro",
+      "description": "Transportadora em expansão contrata controller com foco em fluxo de caixa e abertura de filial.",
+      "company": {
+        "name": "Trans Exemplo",
+        "website": "https://transexemplo.com.br"
+      },
+      "location": {
+        "city": "Campinas",
+        "state": "SP"
+      },
+      "url": "https://feed.example.com/jobs/1"
+    },
+    {
+      "id": "feed-002",
+      "title": "Especialista em Implantação de ERP",
+      "description": "Distribuidora busca profissional para implantação de ERP com integração financeira e tesouraria.",
+      "company": {
+        "name": "Distribuidora Modelo",
+        "website": "https://distribuidoramodelo.com.br"
+      },
+      "location": {
+        "city": "Contagem",
+        "state": "MG"
+      },
+      "url": "https://feed.example.com/jobs/2"
+    }
+  ]
+}

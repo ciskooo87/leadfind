@@ -14,3 +14,19 @@ class GenericHtmlJobsCollectRequest(BaseModel):
     website_selector: str | None = None
     confidence: float = 0.72
     normalize_after_insert: bool = True
+
+
+class JsonJobsCollectRequest(BaseModel):
+    url: HttpUrl
+    source_name: str = "Indeed"
+    items_path: str
+    title_path: str
+    content_path: str
+    company_path: str | None = None
+    city_path: str | None = None
+    state_path: str | None = None
+    link_path: str | None = None
+    website_path: str | None = None
+    external_id_path: str | None = None
+    confidence: float = 0.78
+    normalize_after_insert: bool = True
