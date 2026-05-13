@@ -1,6 +1,7 @@
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
@@ -19,6 +20,7 @@ from app.schemas.source import SourceRead
 from app.schemas.watchlist import WatchlistCreate, WatchlistRead, WatchlistRunLogRead, WatchlistRunResult, WatchlistSchedulerRunResponse
 from app.services.bootstrap import seed_sources
 from app.services.company_resolution import match_company
+from app.services.exporters import executive_lead_to_csv_bytes, executive_lead_to_json_bytes, ranking_to_csv_bytes, ranking_to_json_bytes
 from app.services.ingestion import ingest_raw_events
 from app.services.lead_formatter import format_executive_lead
 from app.services.lead_generation import generate_lead_snapshot
@@ -53,6 +55,27 @@ def _build_lead_read(snapshot: LeadSnapshot) -> LeadRead:
     )
 
 
+def _get_latest_executive_snapshot(db: Session, company_id: int) -> LeadExecutiveRead:
+    snapshot = (
+        db.query(LeadSnapshot)
+        .filter(LeadSnapshot.company_id == company_id)
+        .order_by(LeadSnapshot.created_at.desc())
+        .first()
+    )
+    if not snapshot:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    if snapshot.executive_payload:
+        return LeadExecutiveRead(**json.loads(snapshot.executive_payload))
+
+    company = db.get(Company, company_id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    signals = db.query(Signal).filter(Signal.company_id == company_id).order_by(Signal.detected_at.desc()).all()
+    result = score_company(company, signals)
+    return format_executive_lead(company, signals, result)
+
+
 @router.get("/health")
 def health(db: Session = Depends(get_db)):
     seed_sources(db)
@@ -74,6 +97,21 @@ def get_leads_ranking(
     db: Session = Depends(get_db),
 ):
     return rank_latest_leads(db, limit=limit, min_score=min_score, tier=tier, sector=sector)
+
+
+@router.get("/leads/ranking/export")
+def export_leads_ranking(
+    format: str = Query(default="json", pattern="^(json|csv)$"),
+    limit: int = Query(default=20, ge=1, le=100),
+    min_score: float | None = Query(default=None, ge=0, le=100),
+    tier: str | None = Query(default=None),
+    sector: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    ranking = rank_latest_leads(db, limit=limit, min_score=min_score, tier=tier, sector=sector)
+    if format == "csv":
+        return Response(content=ranking_to_csv_bytes(ranking), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=lead-ranking.csv"})
+    return Response(content=ranking_to_json_bytes(ranking), media_type="application/json", headers={"Content-Disposition": "attachment; filename=lead-ranking.json"})
 
 
 @router.get("/watchlists", response_model=list[WatchlistRead])
@@ -246,21 +284,16 @@ def list_leads(company_id: int, db: Session = Depends(get_db)):
 
 @router.get("/leads/{company_id}/executive", response_model=LeadExecutiveRead)
 def get_latest_executive_lead(company_id: int, db: Session = Depends(get_db)):
-    snapshot = (
-        db.query(LeadSnapshot)
-        .filter(LeadSnapshot.company_id == company_id)
-        .order_by(LeadSnapshot.created_at.desc())
-        .first()
-    )
-    if not snapshot:
-        raise HTTPException(status_code=404, detail="Lead not found")
+    return _get_latest_executive_snapshot(db, company_id)
 
-    if snapshot.executive_payload:
-        return LeadExecutiveRead(**json.loads(snapshot.executive_payload))
 
-    company = db.get(Company, company_id)
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
-    signals = db.query(Signal).filter(Signal.company_id == company_id).order_by(Signal.detected_at.desc()).all()
-    result = score_company(company, signals)
-    return format_executive_lead(company, signals, result)
+@router.get("/leads/{company_id}/executive/export")
+def export_executive_lead(
+    company_id: int,
+    format: str = Query(default="json", pattern="^(json|csv)$"),
+    db: Session = Depends(get_db),
+):
+    lead = _get_latest_executive_snapshot(db, company_id)
+    if format == "csv":
+        return Response(content=executive_lead_to_csv_bytes(lead), media_type="text/csv", headers={"Content-Disposition": f"attachment; filename=lead-{company_id}.csv"})
+    return Response(content=executive_lead_to_json_bytes(lead), media_type="application/json", headers={"Content-Disposition": f"attachment; filename=lead-{company_id}.json"})
