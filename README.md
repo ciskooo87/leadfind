@@ -158,6 +158,17 @@ Ao executar uma watchlist, o sistema agora:
 5. atualiza o ranking operacional
 6. grava histórico de execução com status, eventos, leads e empresas impactadas
 
+Para execução operacional fora da API:
+```bash
+python scripts/run_due_watchlists.py
+bash scripts/run_due_watchlists_once.sh
+```
+
+Exemplo de cron:
+```bash
+cat deploy/cron.example
+```
+
 ## Exportação
 O sistema suporta exportação de:
 - ranking em JSON/CSV
@@ -168,6 +179,16 @@ Via scripts:
 python scripts/export_ranking.py --format csv --output exports/ranking.csv
 python scripts/export_executive_lead.py 1 --format json --output exports/lead-1.json
 ```
+
+## Webhooks
+O sistema suporta targets de webhook para entrega automática ou manual de leads priorizados.
+
+Endpoints:
+- `GET /webhooks`
+- `POST /webhooks`
+- `GET /webhooks/{id}/deliveries`
+- `POST /webhooks/{id}/dispatch-latest`
+- `POST /webhooks/{id}/dispatch/{company_id}`
 
 ## Migrações
 O schema agora é gerido por Alembic.

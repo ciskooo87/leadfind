@@ -133,3 +133,31 @@ class WatchlistRunLog(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     watchlist: Mapped[Watchlist] = relationship(back_populates="run_logs")
+
+
+class WebhookTarget(Base):
+    __tablename__ = "webhook_targets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+    target_url: Mapped[str] = mapped_column(String(1000), nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    min_score: Mapped[float] = mapped_column(Float, default=60)
+    lead_tiers: Mapped[str] = mapped_column(String(50), default="A,B")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    deliveries: Mapped[list["WebhookDelivery"]] = relationship(back_populates="webhook_target", cascade="all, delete-orphan")
+
+
+class WebhookDelivery(Base):
+    __tablename__ = "webhook_deliveries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    webhook_target_id: Mapped[int] = mapped_column(ForeignKey("webhook_targets.id"), index=True)
+    company_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    response_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    response_body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    webhook_target: Mapped[WebhookTarget] = relationship(back_populates="deliveries")
