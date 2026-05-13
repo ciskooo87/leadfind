@@ -30,3 +30,10 @@ class JsonJobsCollectRequest(BaseModel):
     external_id_path: str | None = None
     confidence: float = 0.78
     normalize_after_insert: bool = True
+
+
+class JsonLdJobsCollectRequest(BaseModel):
+    url: HttpUrl
+    source_name: str = "Corporate Careers"
+    confidence: float = 0.84
+    normalize_after_insert: bool = True
