@@ -1,0 +1,15 @@
+{
+  "url": "http://127.0.0.1:8770/sample_jobs_feed.json",
+  "source_name": "Indeed",
+  "items_path": "jobs",
+  "title_path": "title",
+  "content_path": "description",
+  "company_path": "company.name",
+  "city_path": "location.city",
+  "state_path": "location.state",
+  "link_path": "url",
+  "website_path": "company.website",
+  "external_id_path": "id",
+  "confidence": 0.82,
+  "normalize_after_insert": true
+}

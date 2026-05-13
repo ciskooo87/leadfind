@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.db.base import Base
-from app.db.models import Company, LeadSnapshot, RawEvent, Signal, Source
+from app.db.models import Company, LeadSnapshot, RawEvent, Signal, Source, Watchlist
 from app.db.session import engine
 from app.schemas.company import CompanyCreate, CompanyMatchRequest, CompanyRead
 from app.schemas.lead import LeadExecutiveRead, LeadRead
@@ -16,6 +16,7 @@ from app.schemas.ranking import LeadRankingResponse
 from app.schemas.raw_event import RawEventBatchCreate, RawEventCreate, RawEventRead
 from app.schemas.signal import SignalCreate, SignalRead
 from app.schemas.source import SourceRead
+from app.schemas.watchlist import WatchlistCreate, WatchlistRead, WatchlistRunResult
 from app.services.bootstrap import seed_sources
 from app.services.company_resolution import match_company
 from app.services.ingestion import ingest_raw_events
@@ -27,6 +28,7 @@ from app.services.normalization import normalize_raw_event
 from app.services.payloads import to_db_payload
 from app.services.provider_ingestion import collect_generic_html_jobs, collect_json_jobs, collect_jsonld_jobs
 from app.services.scoring import score_company
+from app.services.watchlists import create_watchlist, list_watchlists, run_watchlist
 
 Base.metadata.create_all(bind=engine)
 
@@ -71,6 +73,27 @@ def get_leads_ranking(
     db: Session = Depends(get_db),
 ):
     return rank_latest_leads(db, limit=limit, min_score=min_score, tier=tier, sector=sector)
+
+
+@router.get("/watchlists", response_model=list[WatchlistRead])
+def get_watchlists(active_only: bool = Query(default=False), db: Session = Depends(get_db)):
+    return list_watchlists(db, active_only=active_only)
+
+
+@router.post("/watchlists", response_model=WatchlistRead)
+def create_watchlist_route(payload: WatchlistCreate, db: Session = Depends(get_db)):
+    return create_watchlist(db, payload)
+
+
+@router.post("/watchlists/{watchlist_id}/run", response_model=WatchlistRunResult)
+def run_watchlist_route(watchlist_id: int, db: Session = Depends(get_db)):
+    watchlist = db.get(Watchlist, watchlist_id)
+    if not watchlist:
+        raise HTTPException(status_code=404, detail="Watchlist not found")
+    try:
+        return run_watchlist(db, watchlist)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/companies", response_model=CompanyRead)
