@@ -16,7 +16,7 @@ from app.schemas.ranking import LeadRankingResponse
 from app.schemas.raw_event import RawEventBatchCreate, RawEventCreate, RawEventRead
 from app.schemas.signal import SignalCreate, SignalRead
 from app.schemas.source import SourceRead
-from app.schemas.watchlist import WatchlistCreate, WatchlistRead, WatchlistRunResult
+from app.schemas.watchlist import WatchlistCreate, WatchlistRead, WatchlistRunLogRead, WatchlistRunResult
 from app.services.bootstrap import seed_sources
 from app.services.company_resolution import match_company
 from app.services.ingestion import ingest_raw_events
@@ -29,7 +29,7 @@ from app.services.normalization import normalize_raw_event
 from app.services.payloads import to_db_payload
 from app.services.provider_ingestion import collect_generic_html_jobs, collect_json_jobs, collect_jsonld_jobs
 from app.services.scoring import score_company
-from app.services.watchlists import create_watchlist, list_watchlists, run_watchlist
+from app.services.watchlists import create_watchlist, list_watchlist_runs, list_watchlists, run_watchlist
 
 Base.metadata.create_all(bind=engine)
 
@@ -79,6 +79,14 @@ def get_leads_ranking(
 @router.get("/watchlists", response_model=list[WatchlistRead])
 def get_watchlists(active_only: bool = Query(default=False), db: Session = Depends(get_db)):
     return list_watchlists(db, active_only=active_only)
+
+
+@router.get("/watchlists/{watchlist_id}/runs", response_model=list[WatchlistRunLogRead])
+def get_watchlist_runs(watchlist_id: int, db: Session = Depends(get_db)):
+    watchlist = db.get(Watchlist, watchlist_id)
+    if not watchlist:
+        raise HTTPException(status_code=404, detail="Watchlist not found")
+    return list_watchlist_runs(db, watchlist_id)
 
 
 @router.post("/watchlists", response_model=WatchlistRead)

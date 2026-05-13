@@ -29,3 +29,17 @@ class WatchlistRunResult(BaseModel):
     generated_leads: int
     impacted_company_ids: list[int]
     detail: str
+
+
+class WatchlistRunLogRead(BaseModel):
+    id: int
+    watchlist_id: int
+    status: str
+    created_events: int
+    generated_leads: int
+    impacted_company_ids_json: str
+    detail: str
+    started_at: datetime
+    finished_at: datetime | None = None
+
+    model_config = {"from_attributes": True}

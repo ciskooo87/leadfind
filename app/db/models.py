@@ -114,3 +114,21 @@ class Watchlist(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    run_logs: Mapped[list["WatchlistRunLog"]] = relationship(back_populates="watchlist", cascade="all, delete-orphan")
+
+
+class WatchlistRunLog(Base):
+    __tablename__ = "watchlist_run_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    watchlist_id: Mapped[int] = mapped_column(ForeignKey("watchlists.id"), index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    created_events: Mapped[int] = mapped_column(Integer, default=0)
+    generated_leads: Mapped[int] = mapped_column(Integer, default=0)
+    impacted_company_ids_json: Mapped[str] = mapped_column(Text, default="[]")
+    detail: Mapped[str] = mapped_column(Text, default="")
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    watchlist: Mapped[Watchlist] = relationship(back_populates="run_logs")
