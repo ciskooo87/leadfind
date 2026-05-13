@@ -1,0 +1,15 @@
+LEGAL_SIGNAL_RULES = {
+    'execucao': ('legal', 'execution_process', 0.9),
+    'execução': ('legal', 'execution_process', 0.9),
+    'acao de cobranca': ('finance', 'legal_collection_growth', 0.86),
+    'ação de cobrança': ('finance', 'legal_collection_growth', 0.86),
+    'protesto': ('finance', 'legal_collection_growth', 0.8),
+    'reclamacao trabalhista': ('legal', 'labor_claim_growth', 0.78),
+    'reclamação trabalhista': ('legal', 'labor_claim_growth', 0.78),
+    'acao trabalhista': ('legal', 'labor_claim_growth', 0.76),
+    'ação trabalhista': ('legal', 'labor_claim_growth', 0.76),
+    'recuperacao judicial': ('legal', 'judicial_recovery_signal', 0.96),
+    'recuperação judicial': ('legal', 'judicial_recovery_signal', 0.96),
+    'reestruturacao financeira': ('finance', 'financial_restructuring', 0.9),
+    'reestruturação financeira': ('finance', 'financial_restructuring', 0.9),
+}

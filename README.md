@@ -80,6 +80,8 @@ Formato JSONL esperado: um evento por linha, com pelo menos:
 - `POST /providers/generic-html-jobs/collect`
 - `POST /providers/json-jobs/collect`
 - `POST /providers/jsonld-jobs/collect`
+- `POST /providers/generic-html-news/collect`
+- `POST /providers/generic-html-legal/collect`
 
 ## Coleta via provider HTML genérico
 Esse provider permite apontar para uma página HTML com vagas e informar seletores CSS para extrair:
@@ -112,6 +114,14 @@ Esse provider permite capturar notícias em HTML e transformá-las em sinais ope
 - expansão geográfica
 - crescimento acelerado
 - ampliação de frota
+
+## Coleta via provider jurídico
+Esse provider permite capturar eventos jurídicos em HTML e transformá-los em sinais como:
+- execução
+- ação de cobrança
+- trabalhistas
+- recuperação judicial
+- reestruturação financeira
 
 Útil para enriquecer o radar além de vagas.
 
