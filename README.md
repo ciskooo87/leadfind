@@ -79,6 +79,8 @@ Formato JSONL esperado: um evento por linha, com pelo menos:
 ## Endpoints adicionais
 - `POST /companies/match`
 - `GET /leads/ranking`
+- `GET /leads/ranking/export`
+- `GET /leads/{company_id}/executive/export`
 - `POST /providers/generic-html-jobs/collect`
 - `POST /providers/json-jobs/collect`
 - `POST /providers/jsonld-jobs/collect`
@@ -87,6 +89,8 @@ Formato JSONL esperado: um evento por linha, com pelo menos:
 - `GET /watchlists`
 - `POST /watchlists`
 - `POST /watchlists/{id}/run`
+- `GET /watchlists/{id}/runs`
+- `POST /watchlists/run-due`
 
 ## Coleta via provider HTML genérico
 Esse provider permite apontar para uma página HTML com vagas e informar seletores CSS para extrair:
