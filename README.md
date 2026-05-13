@@ -105,7 +105,15 @@ Esse provider permite consumir feeds estruturados em JSON, informando paths como
 ## Coleta via provider JSON-LD
 Esse provider extrai vagas de páginas que publicam `JobPosting` em `application/ld+json`, comum em páginas corporativas de carreira.
 
-Útil para integrações mais estáveis do que scraping HTML e mais próximas de sites reais.
+## Coleta via provider de notícias
+Esse provider permite capturar notícias em HTML e transformá-las em sinais operacionais, como:
+- nova filial
+- novo centro de distribuição
+- expansão geográfica
+- crescimento acelerado
+- ampliação de frota
+
+Útil para enriquecer o radar além de vagas.
 
 ## Próximos passos
 1. adicionar migrações

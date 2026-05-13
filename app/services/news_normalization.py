@@ -1,17 +1,16 @@
 from sqlalchemy.orm import Session
 
-from app.data.signal_taxonomy import JOB_SIGNAL_RULES
+from app.data.news_taxonomy import NEWS_SIGNAL_RULES
 from app.db.models import RawEvent, Signal, Source
 from app.services.company_resolution import match_company
-from app.services.news_normalization import normalize_news_raw_event
 from app.services.text_utils import normalize_text
 
 
-def infer_signals_from_job_text(text: str) -> list[tuple[str, str, float]]:
+def infer_signals_from_news_text(text: str) -> list[tuple[str, str, float]]:
     normalized = normalize_text(text)
     inferred: list[tuple[str, str, float]] = []
     seen: set[str] = set()
-    for keyword, value in JOB_SIGNAL_RULES.items():
+    for keyword, value in NEWS_SIGNAL_RULES.items():
         category, signal_type, confidence = value
         if keyword in normalized and signal_type not in seen:
             inferred.append((category, signal_type, confidence))
@@ -33,11 +32,8 @@ def _signal_exists(db: Session, company_id: int, signal_type: str, source_name: 
     )
 
 
-def normalize_raw_event(db: Session, raw_event: RawEvent) -> RawEvent:
+def normalize_news_raw_event(db: Session, raw_event: RawEvent) -> RawEvent:
     source = db.get(Source, raw_event.source_id)
-    if source and source.source_type == 'news':
-        return normalize_news_raw_event(db, raw_event)
-
     company = match_company(
         db,
         company_name=raw_event.company_name_raw,
@@ -49,12 +45,12 @@ def normalize_raw_event(db: Session, raw_event: RawEvent) -> RawEvent:
         raw_event.company_id = company.id
 
     inferred_signals: list[tuple[str, str, float]] = []
-    if source and source.source_type == "jobs":
-        inferred_signals = infer_signals_from_job_text(f"{raw_event.title or ''} {raw_event.content}")
+    if source and source.source_type == 'news':
+        inferred_signals = infer_signals_from_news_text(f"{raw_event.title or ''} {raw_event.content}")
 
     if inferred_signals:
-        raw_event.normalized_signal_type = ",".join(signal_type for _, signal_type, _ in inferred_signals)
-        raw_event.normalized_status = "normalized"
+        raw_event.normalized_signal_type = ','.join(signal_type for _, signal_type, _ in inferred_signals)
+        raw_event.normalized_status = 'normalized'
         raw_event.confidence = max(raw_event.confidence, max(conf for _, _, conf in inferred_signals))
 
         if company:
@@ -74,9 +70,9 @@ def normalize_raw_event(db: Session, raw_event: RawEvent) -> RawEvent:
                 )
                 db.add(signal)
                 created_any = True
-            raw_event.normalized_status = "signal_created" if created_any else "duplicate_signal"
+            raw_event.normalized_status = 'signal_created' if created_any else 'duplicate_signal'
     else:
-        raw_event.normalized_status = "ignored"
+        raw_event.normalized_status = 'ignored'
 
     db.add(raw_event)
     db.commit()

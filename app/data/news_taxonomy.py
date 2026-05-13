@@ -1,0 +1,15 @@
+NEWS_SIGNAL_RULES = {
+    'nova filial': ('operations', 'new_branch', 0.88),
+    'abertura de filial': ('operations', 'new_branch', 0.9),
+    'novo centro de distribuicao': ('operations', 'new_distribution_center', 0.9),
+    'novo centro de distribuição': ('operations', 'new_distribution_center', 0.9),
+    'novo cd': ('operations', 'new_distribution_center', 0.82),
+    'expansao': ('operations', 'geographic_expansion', 0.78),
+    'expansão': ('operations', 'geographic_expansion', 0.78),
+    'ampliacao da frota': ('operations', 'fleet_expansion', 0.84),
+    'ampliação da frota': ('operations', 'fleet_expansion', 0.84),
+    'crescimento acelerado': ('operations', 'accelerated_growth_news', 0.8),
+    'nova unidade': ('operations', 'new_branch', 0.84),
+    'novo galpao': ('operations', 'new_distribution_center', 0.8),
+    'novo galpão': ('operations', 'new_distribution_center', 0.8),
+}
