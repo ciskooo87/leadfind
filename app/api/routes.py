@@ -11,6 +11,7 @@ from app.schemas.lead import LeadExecutiveRead, LeadRead
 from app.schemas.legal import GenericHtmlLegalCollectRequest
 from app.schemas.news import GenericHtmlNewsCollectRequest
 from app.schemas.provider import GenericHtmlJobsCollectRequest, JsonJobsCollectRequest, JsonLdJobsCollectRequest
+from app.schemas.provider_specific import GupyJobsCollectRequest
 from app.schemas.ranking import LeadRankingResponse
 from app.schemas.raw_event import RawEventBatchCreate, RawEventCreate, RawEventRead
 from app.schemas.signal import SignalCreate, SignalRead
@@ -28,7 +29,7 @@ from app.services.legal_ingestion import collect_generic_html_legal
 from app.services.news_ingestion import collect_generic_html_news
 from app.services.normalization import normalize_raw_event
 from app.services.payloads import to_db_payload
-from app.services.provider_ingestion import collect_generic_html_jobs, collect_json_jobs, collect_jsonld_jobs
+from app.services.provider_ingestion import collect_generic_html_jobs, collect_gupy_jobs, collect_json_jobs, collect_jsonld_jobs
 from app.services.scoring import score_company
 from app.services.watchlists import create_watchlist, list_watchlist_runs, list_watchlists, run_due_watchlists, run_watchlist
 from app.services.webhooks import create_webhook_target, deliver_lead_snapshot, dispatch_latest_leads, list_webhook_deliveries, list_webhook_targets
@@ -61,14 +62,14 @@ def _get_latest_executive_snapshot(db: Session, company_id: int) -> LeadExecutiv
         .first()
     )
     if not snapshot:
-        raise HTTPException(status_code=404, detail="Lead not found")
+        raise HTTPException(status_code=404, detail='Lead not found')
 
     if snapshot.executive_payload:
         return LeadExecutiveRead(**json.loads(snapshot.executive_payload))
 
     company = db.get(Company, company_id)
     if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
+        raise HTTPException(status_code=404, detail='Company not found')
     signals = db.query(Signal).filter(Signal.company_id == company_id).order_by(Signal.detected_at.desc()).all()
     result = score_company(company, signals)
     return format_executive_lead(company, signals, result)
@@ -238,6 +239,14 @@ def normalize_event(raw_event_id: int, db: Session = Depends(get_db)):
 def collect_jobs_from_generic_html(payload: GenericHtmlJobsCollectRequest, db: Session = Depends(get_db)):
     try:
         return collect_generic_html_jobs(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post('/providers/gupy-jobs/collect', response_model=list[RawEventRead])
+def collect_jobs_from_gupy(payload: GupyJobsCollectRequest, db: Session = Depends(get_db)):
+    try:
+        return collect_gupy_jobs(db, payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

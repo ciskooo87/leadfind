@@ -107,6 +107,12 @@ Esse provider permite apontar para uma página HTML com vagas e informar seletor
 - link da vaga
 - site da empresa
 
+## Coleta via adapter Gupy
+Esse adapter faz uma leitura mais específica de páginas de vagas em padrão Gupy/semelhante, servindo como primeiro passo para conectores menos genéricos e mais precisos.
+
+Endpoint:
+- `POST /providers/gupy-jobs/collect`
+
 ## Coleta via provider JSON
 Esse provider permite consumir feeds estruturados em JSON, informando paths como:
 - lista de itens
