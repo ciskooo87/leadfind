@@ -5,12 +5,13 @@ from app.api.deps import get_db
 from app.db.base import Base
 from app.db.models import Company, LeadSnapshot, RawEvent, Signal, Source
 from app.db.session import engine
-from app.schemas.company import CompanyCreate, CompanyRead
+from app.schemas.company import CompanyCreate, CompanyMatchRequest, CompanyRead
 from app.schemas.lead import LeadRead
 from app.schemas.raw_event import RawEventBatchCreate, RawEventCreate, RawEventRead
 from app.schemas.signal import SignalCreate, SignalRead
 from app.schemas.source import SourceRead
 from app.services.bootstrap import seed_sources
+from app.services.company_resolution import match_company
 from app.services.ingestion import ingest_raw_events
 from app.services.normalization import normalize_raw_event
 from app.services.payloads import to_db_payload
@@ -40,6 +41,19 @@ def create_company(payload: CompanyCreate, db: Session = Depends(get_db)):
     db.add(company)
     db.commit()
     db.refresh(company)
+    return company
+
+
+@router.post("/companies/match", response_model=CompanyRead | None)
+def resolve_company_match(payload: CompanyMatchRequest, db: Session = Depends(get_db)):
+    company = match_company(
+        db,
+        company_name=payload.company_name,
+        website=str(payload.website) if payload.website else None,
+        city=payload.city,
+        state=payload.state,
+        cnpj_root=payload.cnpj_root,
+    )
     return company
 
 

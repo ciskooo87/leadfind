@@ -4,7 +4,8 @@ import unicodedata
 from sqlalchemy.orm import Session
 
 from app.data.signal_taxonomy import JOB_SIGNAL_RULES
-from app.db.models import Company, RawEvent, Signal, Source
+from app.db.models import RawEvent, Signal, Source
+from app.services.company_resolution import match_company
 
 
 def normalize_text(value: str | None) -> str:
@@ -14,22 +15,6 @@ def normalize_text(value: str | None) -> str:
     value = "".join(ch for ch in value if not unicodedata.combining(ch))
     value = value.lower().strip()
     return re.sub(r"\s+", " ", value)
-
-
-def resolve_company(db: Session, raw_event: RawEvent) -> Company | None:
-    company_name = normalize_text(raw_event.company_name_raw)
-    if not company_name:
-        return None
-
-    companies = db.query(Company).all()
-    for company in companies:
-        legal = normalize_text(company.legal_name)
-        trade = normalize_text(company.trade_name)
-        if company_name in {legal, trade}:
-            return company
-        if company_name and (company_name in legal or company_name in trade):
-            return company
-    return None
 
 
 def infer_signals_from_job_text(text: str) -> list[tuple[str, str, float]]:
@@ -60,7 +45,13 @@ def _signal_exists(db: Session, company_id: int, signal_type: str, source_name: 
 
 def normalize_raw_event(db: Session, raw_event: RawEvent) -> RawEvent:
     source = db.get(Source, raw_event.source_id)
-    company = resolve_company(db, raw_event)
+    company = match_company(
+        db,
+        company_name=raw_event.company_name_raw,
+        website=raw_event.company_website_raw,
+        city=raw_event.city_raw,
+        state=raw_event.state_raw,
+    )
     if company:
         raw_event.company_id = company.id
 

@@ -13,6 +13,14 @@ class CompanyCreate(BaseModel):
     linkedin_url: HttpUrl | None = None
 
 
+class CompanyMatchRequest(BaseModel):
+    company_name: str | None = None
+    website: HttpUrl | None = None
+    city: str | None = None
+    state: str | None = None
+    cnpj_root: str | None = None
+
+
 class CompanyRead(BaseModel):
     id: int
     legal_name: str

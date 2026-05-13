@@ -16,7 +16,7 @@ class Company(Base):
     city: Mapped[str | None] = mapped_column(String(120), nullable=True)
     state: Mapped[str | None] = mapped_column(String(2), nullable=True)
     estimated_size: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    website: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    website: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     linkedin_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -89,6 +89,7 @@ class RawEvent(Base):
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     company_name_raw: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    company_website_raw: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     city_raw: Mapped[str | None] = mapped_column(String(120), nullable=True)
     state_raw: Mapped[str | None] = mapped_column(String(10), nullable=True)
     occurred_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)

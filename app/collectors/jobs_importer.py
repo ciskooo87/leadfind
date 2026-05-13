@@ -3,11 +3,27 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from app.collectors.provider_models import ProviderJobEvent
 from app.schemas.raw_event import RawEventCreate
 from app.services.ingestion import ingest_raw_events
 
 
 REQUIRED_FIELDS = {"source_name", "content"}
+
+
+def provider_event_to_raw_event(event: ProviderJobEvent) -> RawEventCreate:
+    return RawEventCreate(
+        source_name=event.source_name,
+        external_id=event.external_id,
+        source_url=event.source_url,
+        title=event.title,
+        content=event.content,
+        company_name_raw=event.company_name_raw,
+        company_website_raw=event.company_website_raw,
+        city_raw=event.city_raw,
+        state_raw=event.state_raw,
+        confidence=event.confidence,
+    )
 
 
 def load_job_events_from_jsonl(path: str | Path) -> list[RawEventCreate]:
@@ -23,7 +39,8 @@ def load_job_events_from_jsonl(path: str | Path) -> list[RawEventCreate]:
             missing = REQUIRED_FIELDS - payload.keys()
             if missing:
                 raise ValueError(f"Linha {line_number}: campos obrigatórios ausentes: {', '.join(sorted(missing))}")
-            events.append(RawEventCreate(**payload))
+            provider_event = ProviderJobEvent(**payload)
+            events.append(provider_event_to_raw_event(provider_event))
 
     return events
 

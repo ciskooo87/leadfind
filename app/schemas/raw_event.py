@@ -9,6 +9,7 @@ class RawEventCreate(BaseModel):
     title: str | None = None
     content: str
     company_name_raw: str | None = None
+    company_website_raw: HttpUrl | None = None
     city_raw: str | None = None
     state_raw: str | None = None
     occurred_at: datetime | None = None
@@ -29,6 +30,7 @@ class RawEventRead(BaseModel):
     title: str | None = None
     content: str
     company_name_raw: str | None = None
+    company_website_raw: str | None = None
     city_raw: str | None = None
     state_raw: str | None = None
     occurred_at: datetime
