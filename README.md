@@ -36,16 +36,27 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-## Endpoints iniciais
+## Endpoints atuais
 - `GET /health`
+- `GET /sources`
 - `POST /companies`
 - `POST /signals`
+- `POST /raw-events`
+- `POST /raw-events/{raw_event_id}/normalize`
 - `POST /leads/generate/{company_id}`
 - `GET /leads/{company_id}`
 
+## Pipeline atual do MVP
+1. cadastrar empresa
+2. registrar evento bruto vindo de uma fonte pública
+3. normalizar o evento bruto
+4. inferir um ou mais sinais de intenção
+5. gerar lead com score explicável
+
 ## Próximos passos
 1. adicionar migrações
-2. conectar fontes reais
-3. criar deduplicação por CNPJ raiz/domínio
-4. criar fila de coleta
+2. criar conectores reais de coleta
+3. reforçar deduplicação por CNPJ raiz/domínio
+4. criar fila de coleta e normalização
 5. exportação para CRM/webhooks
+6. enriquecer score com recência e evidência cruzada

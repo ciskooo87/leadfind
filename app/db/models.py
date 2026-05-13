@@ -21,6 +21,7 @@ class Company(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     signals: Mapped[list["Signal"]] = relationship(back_populates="company", cascade="all, delete-orphan")
+    raw_events: Mapped[list["RawEvent"]] = relationship(back_populates="company")
 
 
 class Signal(Base):
@@ -56,3 +57,39 @@ class LeadSnapshot(Base):
     risk: Mapped[str] = mapped_column(String(120), nullable=False)
     score_explanation: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Source(Base):
+    __tablename__ = "sources"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    source_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    reliability_score: Mapped[float] = mapped_column(Float, default=0.7)
+    active: Mapped[str] = mapped_column(String(10), default="yes")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    raw_events: Mapped[list["RawEvent"]] = relationship(back_populates="source")
+
+
+class RawEvent(Base):
+    __tablename__ = "raw_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"), index=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"), nullable=True, index=True)
+    external_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    company_name_raw: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    city_raw: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    state_raw: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    normalized_status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    normalized_signal_type: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    confidence: Mapped[float] = mapped_column(Float, default=0.7)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    source: Mapped[Source] = relationship(back_populates="raw_events")
+    company: Mapped[Company | None] = relationship(back_populates="raw_events")

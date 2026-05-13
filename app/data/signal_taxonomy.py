@@ -1,0 +1,30 @@
+JOB_SIGNAL_RULES = {
+    "controller": ("finance", "controller_hiring", 0.9),
+    "controladoria": ("finance", "controller_hiring", 0.9),
+    "tesouraria": ("finance", "treasury_hiring", 0.88),
+    "contas a receber": ("finance", "accounts_receivable_hiring", 0.85),
+    "cobrança": ("finance", "collections_hiring", 0.85),
+    "credito e cobranca": ("finance", "collections_hiring", 0.82),
+    "crédito e cobrança": ("finance", "collections_hiring", 0.82),
+    "implantação de erp": ("digital", "erp_implementation", 0.9),
+    "implantacao de erp": ("digital", "erp_implementation", 0.9),
+    "erp": ("digital", "erp_change", 0.75),
+    "bpo financeiro": ("digital", "bpo_finance", 0.88),
+    "analista fiscal": ("finance", "fiscal_hiring", 0.6),
+    "frota": ("operations", "fleet_expansion", 0.72),
+    "logística": ("operations", "logistics_hiring", 0.7),
+    "logistica": ("operations", "logistics_hiring", 0.7),
+    "expedição": ("operations", "logistics_hiring", 0.68),
+    "expedicao": ("operations", "logistics_hiring", 0.68),
+    "filial": ("operations", "new_branch", 0.8),
+    "centro de distribuição": ("operations", "new_distribution_center", 0.86),
+    "centro de distribuicao": ("operations", "new_distribution_center", 0.86),
+}
+
+SOURCE_SEEDS = [
+    {"name": "LinkedIn Jobs", "source_type": "jobs", "reliability_score": 0.86},
+    {"name": "Indeed", "source_type": "jobs", "reliability_score": 0.8},
+    {"name": "Gupy", "source_type": "jobs", "reliability_score": 0.83},
+    {"name": "JusBrasil", "source_type": "legal", "reliability_score": 0.78},
+    {"name": "Notícias Regionais", "source_type": "news", "reliability_score": 0.74},
+]
