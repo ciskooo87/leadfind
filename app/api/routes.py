@@ -7,6 +7,7 @@ from app.db.models import Company, LeadSnapshot, RawEvent, Signal, Source
 from app.db.session import engine
 from app.schemas.company import CompanyCreate, CompanyMatchRequest, CompanyRead
 from app.schemas.lead import LeadRead
+from app.schemas.provider import GenericHtmlJobsCollectRequest
 from app.schemas.raw_event import RawEventBatchCreate, RawEventCreate, RawEventRead
 from app.schemas.signal import SignalCreate, SignalRead
 from app.schemas.source import SourceRead
@@ -15,6 +16,7 @@ from app.services.company_resolution import match_company
 from app.services.ingestion import ingest_raw_events
 from app.services.normalization import normalize_raw_event
 from app.services.payloads import to_db_payload
+from app.services.provider_ingestion import collect_generic_html_jobs
 from app.services.scoring import score_company
 
 Base.metadata.create_all(bind=engine)
@@ -110,6 +112,14 @@ def normalize_event(raw_event_id: int, db: Session = Depends(get_db)):
     if not raw_event:
         raise HTTPException(status_code=404, detail="Raw event not found")
     return normalize_raw_event(db, raw_event)
+
+
+@router.post("/providers/generic-html-jobs/collect", response_model=list[RawEventRead])
+def collect_jobs_from_generic_html(payload: GenericHtmlJobsCollectRequest, db: Session = Depends(get_db)):
+    try:
+        return collect_generic_html_jobs(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/leads/generate/{company_id}", response_model=LeadRead)
