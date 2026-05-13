@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
@@ -12,6 +12,7 @@ from app.schemas.lead import LeadExecutiveRead, LeadRead
 from app.schemas.legal import GenericHtmlLegalCollectRequest
 from app.schemas.news import GenericHtmlNewsCollectRequest
 from app.schemas.provider import GenericHtmlJobsCollectRequest, JsonJobsCollectRequest, JsonLdJobsCollectRequest
+from app.schemas.ranking import LeadRankingResponse
 from app.schemas.raw_event import RawEventBatchCreate, RawEventCreate, RawEventRead
 from app.schemas.signal import SignalCreate, SignalRead
 from app.schemas.source import SourceRead
@@ -19,6 +20,7 @@ from app.services.bootstrap import seed_sources
 from app.services.company_resolution import match_company
 from app.services.ingestion import ingest_raw_events
 from app.services.lead_formatter import format_executive_lead
+from app.services.lead_ranking import rank_latest_leads
 from app.services.legal_ingestion import collect_generic_html_legal
 from app.services.news_ingestion import collect_generic_html_news
 from app.services.normalization import normalize_raw_event
@@ -58,6 +60,17 @@ def health(db: Session = Depends(get_db)):
 def list_sources(db: Session = Depends(get_db)):
     seed_sources(db)
     return db.query(Source).order_by(Source.name.asc()).all()
+
+
+@router.get("/leads/ranking", response_model=LeadRankingResponse)
+def get_leads_ranking(
+    limit: int = Query(default=20, ge=1, le=100),
+    min_score: float | None = Query(default=None, ge=0, le=100),
+    tier: str | None = Query(default=None),
+    sector: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    return rank_latest_leads(db, limit=limit, min_score=min_score, tier=tier, sector=sector)
 
 
 @router.post("/companies", response_model=CompanyRead)
