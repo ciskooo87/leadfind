@@ -25,6 +25,7 @@ SOURCE_SEEDS = [
     {"name": "LinkedIn Jobs", "source_type": "jobs", "reliability_score": 0.86},
     {"name": "Indeed", "source_type": "jobs", "reliability_score": 0.8},
     {"name": "Gupy", "source_type": "jobs", "reliability_score": 0.83},
+    {"name": "Corporate Careers", "source_type": "jobs", "reliability_score": 0.88},
     {"name": "JusBrasil", "source_type": "legal", "reliability_score": 0.78},
     {"name": "Notícias Regionais", "source_type": "news", "reliability_score": 0.74},
 ]
