@@ -78,11 +78,15 @@ Formato JSONL esperado: um evento por linha, com pelo menos:
 
 ## Endpoints adicionais
 - `POST /companies/match`
+- `GET /leads/ranking`
 - `POST /providers/generic-html-jobs/collect`
 - `POST /providers/json-jobs/collect`
 - `POST /providers/jsonld-jobs/collect`
 - `POST /providers/generic-html-news/collect`
 - `POST /providers/generic-html-legal/collect`
+- `GET /watchlists`
+- `POST /watchlists`
+- `POST /watchlists/{id}/run`
 
 ## Coleta via provider HTML genérico
 Esse provider permite apontar para uma página HTML com vagas e informar seletores CSS para extrair:
@@ -126,10 +130,20 @@ Esse provider permite capturar eventos jurídicos em HTML e transformá-los em s
 
 Útil para enriquecer o radar além de vagas.
 
+## Watchlists
+O sistema suporta watchlists persistidas para salvar configurações de coleta e executá-las sob demanda.
+
+Cada watchlist guarda:
+- tipo de fonte
+- nome da fonte
+- configuração JSON do coletor
+- status ativo/inativo
+- timestamp da última execução
+
 ## Próximos passos
 1. adicionar migrações
 2. criar adapters específicos por fonte real
-3. criar fila de coleta e normalização
+3. criar fila/agenda de execução automática
 4. exportação para CRM/webhooks
 5. ampliar entity resolution com similaridade/fuzzy score
-6. plugar fontes reais de vagas e notícias
+6. painel operacional de monitoramento
