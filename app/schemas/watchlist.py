@@ -8,6 +8,7 @@ class WatchlistCreate(BaseModel):
     source_name: str
     config_json: str
     active: bool = True
+    schedule_minutes: int | None = None
 
 
 class WatchlistRead(BaseModel):
@@ -17,6 +18,7 @@ class WatchlistRead(BaseModel):
     source_name: str
     config_json: str
     active: bool
+    schedule_minutes: int | None = None
     last_run_at: datetime | None = None
     created_at: datetime
 
@@ -43,3 +45,9 @@ class WatchlistRunLogRead(BaseModel):
     finished_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+class WatchlistSchedulerRunResponse(BaseModel):
+    executed_watchlists: int
+    skipped_watchlists: int
+    results: list[WatchlistRunResult]

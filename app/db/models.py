@@ -112,6 +112,7 @@ class Watchlist(Base):
     source_name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     config_json: Mapped[str] = mapped_column(Text, nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    schedule_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

@@ -16,7 +16,7 @@ from app.schemas.ranking import LeadRankingResponse
 from app.schemas.raw_event import RawEventBatchCreate, RawEventCreate, RawEventRead
 from app.schemas.signal import SignalCreate, SignalRead
 from app.schemas.source import SourceRead
-from app.schemas.watchlist import WatchlistCreate, WatchlistRead, WatchlistRunLogRead, WatchlistRunResult
+from app.schemas.watchlist import WatchlistCreate, WatchlistRead, WatchlistRunLogRead, WatchlistRunResult, WatchlistSchedulerRunResponse
 from app.services.bootstrap import seed_sources
 from app.services.company_resolution import match_company
 from app.services.ingestion import ingest_raw_events
@@ -29,7 +29,7 @@ from app.services.normalization import normalize_raw_event
 from app.services.payloads import to_db_payload
 from app.services.provider_ingestion import collect_generic_html_jobs, collect_json_jobs, collect_jsonld_jobs
 from app.services.scoring import score_company
-from app.services.watchlists import create_watchlist, list_watchlist_runs, list_watchlists, run_watchlist
+from app.services.watchlists import create_watchlist, list_watchlist_runs, list_watchlists, run_due_watchlists, run_watchlist
 
 Base.metadata.create_all(bind=engine)
 
@@ -92,6 +92,11 @@ def get_watchlist_runs(watchlist_id: int, db: Session = Depends(get_db)):
 @router.post("/watchlists", response_model=WatchlistRead)
 def create_watchlist_route(payload: WatchlistCreate, db: Session = Depends(get_db)):
     return create_watchlist(db, payload)
+
+
+@router.post("/watchlists/run-due", response_model=WatchlistSchedulerRunResponse)
+def run_due_watchlists_route(db: Session = Depends(get_db)):
+    return run_due_watchlists(db)
 
 
 @router.post("/watchlists/{watchlist_id}/run", response_model=WatchlistRunResult)

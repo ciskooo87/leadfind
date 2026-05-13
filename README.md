@@ -138,6 +138,7 @@ Cada watchlist guarda:
 - nome da fonte
 - configuração JSON do coletor
 - status ativo/inativo
+- frequência em minutos (`schedule_minutes`)
 - timestamp da última execução
 
 Ao executar uma watchlist, o sistema agora:
@@ -146,6 +147,7 @@ Ao executar uma watchlist, o sistema agora:
 3. identifica empresas impactadas
 4. gera snapshots de lead automaticamente
 5. atualiza o ranking operacional
+6. grava histórico de execução com status, eventos, leads e empresas impactadas
 
 ## Próximos passos
 1. adicionar migrações
