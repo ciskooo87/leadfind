@@ -70,6 +70,31 @@ from app.services.webhooks import create_webhook_target, deliver_lead_snapshot, 
 router = APIRouter()
 
 
+def _company_aliases(company: Company) -> list[str]:
+    raw = company.aliases_json or '[]'
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    return [alias for alias in parsed if isinstance(alias, str)]
+
+
+def _build_company_read(company: Company) -> CompanyRead:
+    return CompanyRead(
+        id=company.id,
+        legal_name=company.legal_name,
+        trade_name=company.trade_name,
+        cnpj_root=company.cnpj_root,
+        sector=company.sector,
+        city=company.city,
+        state=company.state,
+        estimated_size=company.estimated_size,
+        website=company.website,
+        linkedin_url=company.linkedin_url,
+        aliases=_company_aliases(company),
+    )
+
+
 def _build_lead_read(snapshot: LeadSnapshot) -> LeadRead:
     return LeadRead(
         company_id=snapshot.company_id,
@@ -235,16 +260,18 @@ def dispatch_company_to_webhook(target_id: int, company_id: int, db: Session = D
 @router.post('/companies', response_model=CompanyRead)
 def create_company(payload: CompanyCreate, db: Session = Depends(get_db)):
     data = to_db_payload(payload.model_dump(mode='python'))
+    aliases = data.pop('aliases', [])
+    data['aliases_json'] = json.dumps(aliases, ensure_ascii=False)
     company = Company(**data)
     db.add(company)
     db.commit()
     db.refresh(company)
-    return company
+    return _build_company_read(company)
 
 
 @router.post('/companies/match', response_model=CompanyRead | None)
 def resolve_company_match(payload: CompanyMatchRequest, db: Session = Depends(get_db)):
-    return match_company(
+    company = match_company(
         db,
         company_name=payload.company_name,
         website=str(payload.website) if payload.website else None,
@@ -252,6 +279,7 @@ def resolve_company_match(payload: CompanyMatchRequest, db: Session = Depends(ge
         state=payload.state,
         cnpj_root=payload.cnpj_root,
     )
+    return _build_company_read(company) if company else None
 
 
 @router.post('/signals', response_model=SignalRead)

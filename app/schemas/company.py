@@ -11,6 +11,7 @@ class CompanyCreate(BaseModel):
     estimated_size: str | None = None
     website: HttpUrl | None = None
     linkedin_url: HttpUrl | None = None
+    aliases: list[str] = []
 
 
 class CompanyMatchRequest(BaseModel):
@@ -32,5 +33,6 @@ class CompanyRead(BaseModel):
     estimated_size: str | None = None
     website: str | None = None
     linkedin_url: str | None = None
+    aliases: list[str] = []
 
     model_config = {"from_attributes": True}

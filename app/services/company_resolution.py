@@ -1,3 +1,4 @@
+import json
 from difflib import SequenceMatcher
 from urllib.parse import urlparse
 
@@ -52,10 +53,20 @@ def _name_similarity(left: str, right: str) -> float:
     return min(max(ratio, overlap) + contains_bonus, 1.0)
 
 
+def _company_aliases(company: Company) -> list[str]:
+    raw = getattr(company, 'aliases_json', '[]') or '[]'
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    return [alias for alias in parsed if isinstance(alias, str) and alias.strip()]
+
+
 def _best_name_score(input_name: str, company: Company) -> float:
     candidates = [
         normalize_company_token(company.legal_name),
         normalize_company_token(company.trade_name),
+        *[normalize_company_token(alias) for alias in _company_aliases(company)],
     ]
     return max((_name_similarity(input_name, candidate) for candidate in candidates if candidate), default=0.0)
 

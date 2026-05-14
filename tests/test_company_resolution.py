@@ -78,3 +78,27 @@ def test_match_company_returns_none_when_similarity_is_too_low(client):
 
     assert matched.status_code == 200
     assert matched.json() is None
+
+
+def test_create_company_and_match_by_alias(client):
+    created = client.post('/companies', json={
+        'legal_name': 'Companhia Brasileira de Logistica Integrada S/A',
+        'trade_name': 'CB Log',
+        'city': 'Barueri',
+        'state': 'SP',
+        'website': 'https://cblog.com.br',
+        'aliases': ['Companhia Brasileira Logística', 'CBL', 'Log Integrada Brasil']
+    })
+
+    assert created.status_code == 200
+    body = created.json()
+    assert 'CBL' in body['aliases']
+
+    matched = client.post('/companies/match', json={
+        'company_name': 'Companhia Brasileira Logistica',
+        'city': 'Barueri',
+        'state': 'SP'
+    })
+
+    assert matched.status_code == 200
+    assert matched.json()['id'] == body['id']
