@@ -1,5 +1,6 @@
 from app.db.models import Company, Signal
 from app.schemas.lead import LeadExecutiveRead
+from app.services.match_quality import match_quality_label
 from app.services.scoring import ScoreResult
 
 
@@ -126,7 +127,7 @@ def _parse_cross_reasons(score_explanation: str) -> list[str]:
     return items
 
 
-def _motivos_do_score(score_result: ScoreResult, principais_sinais: list[str], fontes: list[str]) -> list[str]:
+def _motivos_do_score(score_result: ScoreResult, principais_sinais: list[str], fontes: list[str], avg_match_confidence: float | None) -> list[str]:
     motivos = []
     cross_reasons = _parse_cross_reasons(score_result.score_explanation)
     for reason in cross_reasons[:5]:
@@ -136,16 +137,17 @@ def _motivos_do_score(score_result: ScoreResult, principais_sinais: list[str], f
         motivos.append(f"Sinais mais fortes observados: {', '.join(principais_sinais[:3])}")
     if fontes:
         motivos.append(f"Fontes utilizadas na priorização: {', '.join(fontes[:4])}")
+    motivos.append(f"Qualidade média do match: {match_quality_label(avg_match_confidence)}")
     motivos.append(f"Faixa de score: {score_result.score} ({_score_bucket(score_result.score)})")
 
     deduped = []
     for item in motivos:
         if item not in deduped:
             deduped.append(item)
-    return deduped[:6]
+    return deduped[:7]
 
 
-def format_executive_lead(company: Company, signals: list[Signal], score_result: ScoreResult) -> LeadExecutiveRead:
+def format_executive_lead(company: Company, signals: list[Signal], score_result: ScoreResult, avg_match_confidence: float | None = None) -> LeadExecutiveRead:
     ordered_signals = sorted(signals, key=lambda s: s.detected_at, reverse=True)
     principais_sinais = []
     seen_signal_types = set()
@@ -158,11 +160,13 @@ def format_executive_lead(company: Company, signals: list[Signal], score_result:
 
     fontes = _fontes(ordered_signals)
     eixos = _eixos_de_evidencia(fontes)
-    motivos = _motivos_do_score(score_result, principais_sinais, fontes)
+    motivos = _motivos_do_score(score_result, principais_sinais, fontes, avg_match_confidence)
+    qualidade_match = match_quality_label(avg_match_confidence)
     resumo = (
         f"{company.trade_name or company.legal_name} apresenta sinais consistentes de intenção financeira/comercial. "
         f"Score {score_result.score} ({_score_bucket(score_result.score)}), com destaque para {', '.join(principais_sinais[:3]) or 'sinais monitorados'}"
         f", eixos {', '.join(eixos[:3]) or 'não identificados'}"
+        f", match {qualidade_match}"
         f" e fontes {', '.join(fontes[:3]) or 'não identificadas'}."
     )
 
@@ -175,6 +179,7 @@ def format_executive_lead(company: Company, signals: list[Signal], score_result:
         score_necessidade_capital=score_result.score,
         probabilidade_conversao=score_result.conversion_probability,
         score_bucket=_score_bucket(score_result.score),
+        qualidade_match=qualidade_match,
         principais_sinais_detectados=principais_sinais,
         eixos_de_evidencia=eixos,
         motivos_do_score=motivos,

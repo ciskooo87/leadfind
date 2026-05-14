@@ -11,6 +11,7 @@ class LeadRankingItem(BaseModel):
     probabilidade_conversao: str
     lead_tier: str
     produto_mais_indicado: str
+    qualidade_match: str | None = None
     fontes_utilizadas: list[str]
     principais_sinais_detectados: list[str]
     atualizado_em: datetime

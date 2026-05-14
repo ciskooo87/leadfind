@@ -28,6 +28,7 @@ class LeadExecutiveRead(BaseModel):
     score_necessidade_capital: float
     probabilidade_conversao: str
     score_bucket: str
+    qualidade_match: str | None = None
     principais_sinais_detectados: list[str]
     eixos_de_evidencia: list[str]
     motivos_do_score: list[str]
