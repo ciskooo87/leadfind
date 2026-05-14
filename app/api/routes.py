@@ -11,6 +11,7 @@ from app.schemas.lead import LeadExecutiveRead, LeadRead
 from app.schemas.legal import GenericHtmlLegalCollectRequest
 from app.schemas.news import GenericHtmlNewsCollectRequest
 from app.schemas.provider import GenericHtmlJobsCollectRequest, JsonJobsCollectRequest, JsonLdJobsCollectRequest
+from app.schemas.reputation import GenericHtmlReputationCollectRequest
 from app.schemas.provider_specific import GreenhouseJobsCollectRequest, GupyJobsCollectRequest, LeverJobsCollectRequest
 from app.schemas.ranking import LeadRankingResponse
 from app.schemas.raw_event import RawEventBatchCreate, RawEventCreate, RawEventRead
@@ -332,4 +333,6 @@ def export_executive_lead(company_id: int, format: str = Query(default='json', p
     lead = _get_latest_executive_snapshot(db, company_id)
     if format == 'csv':
         return Response(content=executive_lead_to_csv_bytes(lead), media_type='text/csv', headers={'Content-Disposition': f'attachment; filename=lead-{company_id}.csv'})
+    return Response(content=executive_lead_to_json_bytes(lead), media_type='application/json', headers={'Content-Disposition': f'attachment; filename=lead-{company_id}.json'})
+executive_lead_to_csv_bytes(lead), media_type='text/csv', headers={'Content-Disposition': f'attachment; filename=lead-{company_id}.csv'})
     return Response(content=executive_lead_to_json_bytes(lead), media_type='application/json', headers={'Content-Disposition': f'attachment; filename=lead-{company_id}.json'})

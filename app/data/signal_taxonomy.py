@@ -31,4 +31,5 @@ SOURCE_SEEDS = [
     {"name": "Corporate Careers", "source_type": "jobs", "reliability_score": 0.88},
     {"name": "JusBrasil", "source_type": "legal", "reliability_score": 0.78},
     {"name": "Notícias Regionais", "source_type": "news", "reliability_score": 0.74},
+    {"name": "Reclamações Operacionais", "source_type": "reputation", "reliability_score": 0.77},
 ]

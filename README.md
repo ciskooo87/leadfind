@@ -93,6 +93,7 @@ Formato JSONL esperado: um evento por linha, com pelo menos:
 - `POST /providers/jsonld-jobs/collect`
 - `POST /providers/generic-html-news/collect`
 - `POST /providers/generic-html-legal/collect`
+- `POST /providers/generic-html-reputation/collect`
 - `GET /watchlists`
 - `POST /watchlists`
 - `POST /watchlists/{id}/run`
@@ -248,6 +249,12 @@ Cobertura inicial inclui:
 
 ## Próximos passos
 1. criar adapters específicos adicionais por fonte real
+2. ampliar entity resolution com similaridade/fuzzy score
+3. painel operacional de monitoramento
+4. testes automatizados mais abrangentes
+5. observabilidade e alertas operacionais
+6. retry/idempotência de webhook
+eal
 2. ampliar entity resolution com similaridade/fuzzy score
 3. painel operacional de monitoramento
 4. testes automatizados mais abrangentes
