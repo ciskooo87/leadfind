@@ -158,6 +158,12 @@ Esse provider permite capturar notícias em HTML e transformá-las em sinais ope
 - crescimento acelerado
 - ampliação de frota
 
+## Coleta via adapter de notícias regionais
+Esse adapter faz leitura mais específica de portais/notícias regionais com estrutura repetível.
+
+Endpoint:
+- `POST /providers/regional-news/collect`
+
 ## Coleta via provider jurídico
 Esse provider permite capturar eventos jurídicos em HTML e transformá-los em sinais como:
 - execução

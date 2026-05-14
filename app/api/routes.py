@@ -28,7 +28,7 @@ from app.services.lead_formatter import format_executive_lead
 from app.services.lead_generation import generate_lead_snapshot
 from app.services.lead_ranking import rank_latest_leads
 from app.services.legal_ingestion import collect_generic_html_legal, collect_jusbrasil_like
-from app.services.news_ingestion import collect_generic_html_news
+from app.services.news_ingestion import collect_generic_html_news, collect_regional_news_like
 from app.services.normalization import normalize_raw_event
 from app.services.payloads import to_db_payload
 from app.services.provider_ingestion import collect_generic_html_jobs, collect_greenhouse_jobs, collect_gupy_jobs, collect_json_jobs, collect_jsonld_jobs, collect_lever_jobs
@@ -336,5 +336,8 @@ def export_executive_lead(company_id: int, format: str = Query(default='json', p
         return Response(content=executive_lead_to_csv_bytes(lead), media_type='text/csv', headers={'Content-Disposition': f'attachment; filename=lead-{company_id}.csv'})
     return Response(content=executive_lead_to_json_bytes(lead), media_type='application/json', headers={'Content-Disposition': f'attachment; filename=lead-{company_id}.json'})
 executive_lead_to_csv_bytes(lead), media_type='text/csv', headers={'Content-Disposition': f'attachment; filename=lead-{company_id}.csv'})
+    return Response(content=executive_lead_to_json_bytes(lead), media_type='application/json', headers={'Content-Disposition': f'attachment; filename=lead-{company_id}.json'})
+nt; filename=lead-{company_id}.json'})
+media_type='text/csv', headers={'Content-Disposition': f'attachment; filename=lead-{company_id}.csv'})
     return Response(content=executive_lead_to_json_bytes(lead), media_type='application/json', headers={'Content-Disposition': f'attachment; filename=lead-{company_id}.json'})
 nt; filename=lead-{company_id}.json'})
