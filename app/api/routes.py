@@ -192,9 +192,19 @@ def export_leads_ranking(
     min_score: float | None = Query(default=None, ge=0, le=100),
     tier: str | None = Query(default=None),
     sector: str | None = Query(default=None),
+    match_quality: str | None = Query(default=None),
+    company_query: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    ranking = rank_latest_leads(db, limit=limit, min_score=min_score, tier=tier, sector=sector)
+    ranking = rank_latest_leads(
+        db,
+        limit=limit,
+        min_score=min_score,
+        tier=tier,
+        sector=sector,
+        match_quality=match_quality,
+        company_query=company_query,
+    )
     if format == 'csv':
         return Response(
             content=ranking_to_csv_bytes(ranking),
