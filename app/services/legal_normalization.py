@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 from app.data.legal_taxonomy import LEGAL_SIGNAL_RULES
 from app.db.models import RawEvent, Signal, Source
 from app.services.company_enrichment import enrich_company_from_raw_event
-from app.services.company_resolution import match_company
+from app.services.company_resolution import match_company_details
+from app.services.match_audit import apply_match_audit
 from app.services.text_utils import normalize_text
 
 
@@ -35,15 +36,16 @@ def _signal_exists(db: Session, company_id: int, signal_type: str, source_name: 
 
 def normalize_legal_raw_event(db: Session, raw_event: RawEvent) -> RawEvent:
     source = db.get(Source, raw_event.source_id)
-    company = match_company(
+    match_result = match_company_details(
         db,
         company_name=raw_event.company_name_raw,
         website=raw_event.company_website_raw,
         city=raw_event.city_raw,
         state=raw_event.state_raw,
     )
+    company = match_result.company
+    apply_match_audit(raw_event, match_result)
     if company:
-        raw_event.company_id = company.id
         enrich_company_from_raw_event(db, company, raw_event)
 
     inferred_signals: list[tuple[str, str, float]] = []

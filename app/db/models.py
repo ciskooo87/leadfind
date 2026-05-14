@@ -103,6 +103,8 @@ class RawEvent(Base):
     normalized_status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
     normalized_signal_type: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     confidence: Mapped[float] = mapped_column(Float, default=0.7)
+    match_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    match_explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
     source: Mapped[Source] = relationship(back_populates="raw_events")

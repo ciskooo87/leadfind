@@ -3,8 +3,9 @@ from sqlalchemy.orm import Session
 from app.data.signal_taxonomy import JOB_SIGNAL_RULES
 from app.db.models import RawEvent, Signal, Source
 from app.services.company_enrichment import enrich_company_from_raw_event
-from app.services.company_resolution import match_company
+from app.services.company_resolution import match_company_details
 from app.services.formal_normalization import normalize_formal_raw_event
+from app.services.match_audit import apply_match_audit
 from app.services.legal_normalization import normalize_legal_raw_event
 from app.services.news_normalization import normalize_news_raw_event
 from app.services.reputation_normalization import normalize_reputation_raw_event
@@ -51,15 +52,16 @@ def normalize_raw_event(db: Session, raw_event: RawEvent) -> RawEvent:
     if source and source.source_type == 'credit':
         return normalize_serasa_raw_event(db, raw_event)
 
-    company = match_company(
+    match_result = match_company_details(
         db,
         company_name=raw_event.company_name_raw,
         website=raw_event.company_website_raw,
         city=raw_event.city_raw,
         state=raw_event.state_raw,
     )
+    company = match_result.company
+    apply_match_audit(raw_event, match_result)
     if company:
-        raw_event.company_id = company.id
         enrich_company_from_raw_event(db, company, raw_event)
 
     inferred_signals: list[tuple[str, str, float]] = []

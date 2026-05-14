@@ -37,5 +37,7 @@ class RawEventRead(BaseModel):
     normalized_status: str
     normalized_signal_type: str | None = None
     confidence: float
+    match_confidence: float | None = None
+    match_explanation: str | None = None
 
     model_config = {"from_attributes": True}
