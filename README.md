@@ -250,12 +250,39 @@ Rodar a suíte inicial:
 pytest -q
 ```
 
-Cobertura inicial inclui:
+Cobertura atual inclui:
 - geração de lead executivo e ranking
 - watchlists com geração automática de leads
 - auto-dispatch de webhooks
-- adapter Gupy básico
-- adapters Greenhouse, Lever e Workday
+- adapters Gupy, Greenhouse, Lever e Workday
+- reputação, notícias regionais, Serasa e atos formais
+- entity resolution com aliases e domínios alternativos
+- auto-enriquecimento de identidade
+- auditoria e qualidade de match
+
+## Publicação do backend do Leadfind
+
+Bind recomendado:
+- `127.0.0.1:8021`
+
+Subida manual:
+```bash
+. .venv/bin/activate
+python scripts/migrate.py
+uvicorn app.main:app --host 127.0.0.1 --port 8021
+```
+
+Exemplo de serviço systemd:
+```bash
+cat deploy/leadfind.service.example
+```
+
+## UI publicada no Ironcore
+
+A UI operacional do Leadfinder foi publicada no projeto `Ironcore-web` em:
+- `https://ironcore.lat/leadfinder/`
+
+Ela consome este backend via HTTP interno.
 
 ## Próximos passos
 1. criar adapters específicos adicionais por fonte real
