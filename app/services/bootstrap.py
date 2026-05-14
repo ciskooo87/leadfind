@@ -1,3 +1,4 @@
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.data.signal_taxonomy import SOURCE_SEEDS
@@ -5,12 +6,12 @@ from app.db.models import Source
 
 
 def seed_sources(db: Session) -> None:
-    existing = {source.name for source in db.query(Source).all()}
-    created = False
     for item in SOURCE_SEEDS:
-        if item["name"] in existing:
+        exists = db.query(Source.id).filter(Source.name == item['name']).first()
+        if exists:
             continue
-        db.add(Source(**item))
-        created = True
-    if created:
-        db.commit()
+        try:
+            db.add(Source(**item))
+            db.commit()
+        except IntegrityError:
+            db.rollback()

@@ -1,6 +1,7 @@
 import json
 from collections import OrderedDict
 
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.db.models import Company, LeadSnapshot
@@ -8,8 +9,21 @@ from app.schemas.lead import LeadExecutiveRead
 from app.schemas.ranking import LeadRankingItem, LeadRankingResponse
 
 
+def _payload_or_none(snapshot: LeadSnapshot) -> LeadExecutiveRead | None:
+    if not snapshot.executive_payload:
+        return None
+    try:
+        data = json.loads(snapshot.executive_payload)
+        data.setdefault('eixos_de_evidencia', [])
+        data.setdefault('motivos_do_score', [])
+        data.setdefault('qualidade_match', 'desconhecida')
+        return LeadExecutiveRead(**data)
+    except (json.JSONDecodeError, ValidationError, TypeError):
+        return None
+
+
 def _to_item(snapshot: LeadSnapshot) -> LeadRankingItem:
-    payload = LeadExecutiveRead(**json.loads(snapshot.executive_payload)) if snapshot.executive_payload else None
+    payload = _payload_or_none(snapshot)
     if payload:
         return LeadRankingItem(
             company_id=snapshot.company_id,
@@ -35,7 +49,7 @@ def _to_item(snapshot: LeadSnapshot) -> LeadRankingItem:
         probabilidade_conversao=snapshot.conversion_probability,
         lead_tier=snapshot.lead_tier,
         produto_mais_indicado=snapshot.recommended_product,
-        qualidade_match=None,
+        qualidade_match='desconhecida',
         fontes_utilizadas=[],
         principais_sinais_detectados=[],
         atualizado_em=snapshot.created_at,
