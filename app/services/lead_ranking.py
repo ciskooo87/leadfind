@@ -62,6 +62,8 @@ def rank_latest_leads(
     min_score: float | None = None,
     tier: str | None = None,
     sector: str | None = None,
+    match_quality: str | None = None,
+    company_query: str | None = None,
 ) -> LeadRankingResponse:
     snapshots = db.query(LeadSnapshot).order_by(LeadSnapshot.created_at.desc()).all()
 
@@ -69,6 +71,9 @@ def rank_latest_leads(
     for snapshot in snapshots:
         if snapshot.company_id not in latest_by_company:
             latest_by_company[snapshot.company_id] = snapshot
+
+    normalized_query = (company_query or '').strip().lower()
+    normalized_match_quality = (match_quality or '').strip().lower()
 
     items: list[LeadRankingItem] = []
     for snapshot in latest_by_company.values():
@@ -81,7 +86,15 @@ def rank_latest_leads(
             continue
         if sector and (company.sector or '').lower() != sector.lower():
             continue
-        items.append(_to_item(snapshot))
+
+        item = _to_item(snapshot)
+        if normalized_match_quality and (item.qualidade_match or '').lower() != normalized_match_quality:
+            continue
+        if normalized_query:
+            haystack = ' '.join(filter(None, [item.empresa, item.setor, item.localizacao])).lower()
+            if normalized_query not in haystack:
+                continue
+        items.append(item)
 
     items.sort(key=lambda item: (item.score, item.atualizado_em), reverse=True)
     items = items[:limit]

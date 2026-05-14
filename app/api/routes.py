@@ -170,9 +170,19 @@ def get_leads_ranking(
     min_score: float | None = Query(default=None, ge=0, le=100),
     tier: str | None = Query(default=None),
     sector: str | None = Query(default=None),
+    match_quality: str | None = Query(default=None),
+    company_query: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    return rank_latest_leads(db, limit=limit, min_score=min_score, tier=tier, sector=sector)
+    return rank_latest_leads(
+        db,
+        limit=limit,
+        min_score=min_score,
+        tier=tier,
+        sector=sector,
+        match_quality=match_quality,
+        company_query=company_query,
+    )
 
 
 @router.get('/leads/ranking/export')
