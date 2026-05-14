@@ -1,6 +1,6 @@
 from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.data.signal_weights import PRIORITY_SECTORS, SIGNAL_WEIGHTS
 from app.db.models import Company, Signal
@@ -23,8 +23,8 @@ class ScoreResult:
 def _signal_age_days(signal: Signal) -> int:
     detected_at = signal.detected_at
     if detected_at.tzinfo is None:
-        detected_at = detected_at.replace(tzinfo=timezone.utc)
-    now = datetime.now(timezone.utc)
+        detected_at = detected_at.replace(tzinfo=UTC)
+    now = datetime.now(UTC)
     return max((now - detected_at).days, 0)
 
 
@@ -89,15 +89,17 @@ def _tier(score: float) -> str:
 
 
 def _source_buckets(signals: list[Signal]) -> dict[str, int]:
-    counts = {"jobs": 0, "news": 0, "legal": 0, "other": 0}
+    counts = {"jobs": 0, "news": 0, "legal": 0, "reputation": 0, "other": 0}
     for signal in signals:
         source_name = signal.source_name.lower()
-        if source_name in {"linkedin jobs", "indeed", "gupy", "corporate careers"}:
+        if source_name in {"linkedin jobs", "indeed", "gupy", "greenhouse", "lever", "workday", "corporate careers"}:
             counts["jobs"] += 1
         elif source_name in {"notícias regionais", "noticias regionais"}:
             counts["news"] += 1
         elif source_name in {"jusbrasil"}:
             counts["legal"] += 1
+        elif source_name in {"reclamações operacionais", "reclamacoes operacionais"}:
+            counts["reputation"] += 1
         else:
             counts["other"] += 1
     return counts
@@ -116,9 +118,21 @@ def _cross_source_bonus(source_buckets: dict[str, int], counter: Counter) -> tup
     if source_buckets["news"] and source_buckets["legal"]:
         bonus += 15
         reasons.append("news+legal")
+    if source_buckets["reputation"] and source_buckets["legal"]:
+        bonus += 16
+        reasons.append("reputation+legal")
+    if source_buckets["reputation"] and source_buckets["news"]:
+        bonus += 11
+        reasons.append("reputation+news")
+    if source_buckets["jobs"] and source_buckets["reputation"]:
+        bonus += 9
+        reasons.append("jobs+reputation")
     if source_buckets["jobs"] and source_buckets["news"] and source_buckets["legal"]:
         bonus += 10
         reasons.append("jobs+news+legal")
+    if source_buckets["news"] and source_buckets["legal"] and source_buckets["reputation"]:
+        bonus += 14
+        reasons.append("news+legal+reputation")
 
     if counter["financial_restructuring"] and counter["judicial_recovery_signal"]:
         bonus += 10
@@ -132,6 +146,18 @@ def _cross_source_bonus(source_buckets: dict[str, int], counter: Counter) -> tup
     if counter["execution_process"] and counter["legal_collection_growth"]:
         bonus += 8
         reasons.append("execution+collection")
+    if counter["delivery_delay_complaints"] and counter["billing_delay_complaints"]:
+        bonus += 8
+        reasons.append("delivery+billing_complaints")
+    if counter["delivery_delay_complaints"] and counter["execution_process"]:
+        bonus += 10
+        reasons.append("operational_delay+execution")
+    if counter["service_breakdown_complaints"] and counter["judicial_recovery_signal"]:
+        bonus += 12
+        reasons.append("service_breakdown+judicial_recovery")
+    if counter["new_branch"] and counter["delivery_delay_complaints"]:
+        bonus += 7
+        reasons.append("expansion+operational_breakdown")
 
     return bonus, reasons
 
@@ -139,6 +165,8 @@ def _cross_source_bonus(source_buckets: dict[str, int], counter: Counter) -> tup
 def _product_recommendation(counter: Counter, source_buckets: dict[str, int], score: float) -> str:
     if counter["judicial_recovery_signal"] or counter["financial_restructuring"]:
         return "crédito estruturado / reestruturação financeira"
+    if source_buckets["reputation"] and source_buckets["legal"]:
+        return "capital de giro emergencial / reestruturação consultiva"
     if source_buckets["legal"] and source_buckets["news"]:
         return "capital de giro estruturado / FIDC performado"
     if counter["erp_change"] or counter["erp_implementation"]:
@@ -157,11 +185,23 @@ def _pain_and_approach(counter: Counter, source_buckets: dict[str, int]) -> tupl
             "Abordagem consultiva sênior, focada em solução estruturada, governança e proteção de liquidez.",
             "imediato, antes de agravamento do quadro"
         )
+    if source_buckets["reputation"] and source_buckets["legal"]:
+        return (
+            "Há combinação de dor operacional visível no mercado com pressão jurídica/financeira, sugerindo tensão concreta na operação e no caixa.",
+            "Abordagem consultiva, direta e orientada a estabilização operacional, liquidez e reorganização do ciclo financeiro.",
+            "imediato, enquanto a dor está pública e relevante"
+        )
     if source_buckets["news"] and source_buckets["jobs"]:
         return (
             "Expansão operacional acompanhada de reforço administrativo/financeiro sugere descasamento entre crescimento e caixa.",
             "Abordagem orientada a funding do crescimento, previsibilidade de recebíveis e eficiência operacional.",
             "imediato, enquanto a expansão ainda está sendo absorvida"
+        )
+    if source_buckets["reputation"]:
+        return (
+            "Reclamações operacionais indicam desgaste de entrega, faturamento ou atendimento, com potencial impacto no caixa e retenção de clientes.",
+            "Abordagem baseada em eficiência operacional, recuperação de previsibilidade e reforço do fluxo financeiro.",
+            "curto prazo, com foco em resolução objetiva de dor"
         )
     if source_buckets["legal"]:
         return (
@@ -222,7 +262,7 @@ def score_company(company: Company, signals: list[Signal]) -> ScoreResult:
     raw_score = weighted_sum + sector_bonus + size_bonus + signal_density_bonus + evidence_bonus + cross_source_bonus
     score = round(min(raw_score, 100), 2)
 
-    top_signals = ", ".join(signal.signal_type for signal in signals[:6])
+    top_signals = ", ".join(signal.signal_type for signal in signals[:8])
     conversion = _conversion_label(score)
     tier = _tier(score)
     product = _product_recommendation(signal_counter, source_buckets, score)
@@ -230,7 +270,7 @@ def score_company(company: Company, signals: list[Signal]) -> ScoreResult:
 
     summary = (
         f"Empresa com {len(signals)} sinais monitorados. Principais gatilhos detectados: {top_signals}. "
-        f"Distribuição por fonte: jobs={source_buckets['jobs']}, news={source_buckets['news']}, legal={source_buckets['legal']}. "
+        f"Distribuição por fonte: jobs={source_buckets['jobs']}, news={source_buckets['news']}, legal={source_buckets['legal']}, reputation={source_buckets['reputation']}. "
         f"Score calculado em {score}, sugerindo probabilidade {conversion} de necessidade de capital ou eficiência financeira."
     )
 

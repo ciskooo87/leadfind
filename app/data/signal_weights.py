@@ -6,7 +6,8 @@ SIGNAL_WEIGHTS = {
         "accounts_receivable_hiring": 7,
         "financial_restructuring": 15,
         "explicit_credit_search": 20,
-        "billing_delay_complaints": 6,
+        "billing_delay_complaints": 7,
+        "payment_delay_complaints": 8,
         "legal_collection_growth": 12,
     },
     "operations": {
@@ -16,6 +17,9 @@ SIGNAL_WEIGHTS = {
         "logistics_hiring": 8,
         "geographic_expansion": 8,
         "accelerated_growth_news": 7,
+        "delivery_delay_complaints": 8,
+        "service_breakdown_complaints": 7,
+        "logistics_complaints": 7,
     },
     "digital": {
         "erp_change": 10,

@@ -259,7 +259,7 @@ Cobertura inicial inclui:
 1. criar adapters específicos adicionais por fonte real
 2. ampliar entity resolution com similaridade/fuzzy score
 3. painel operacional de monitoramento
-4. testes automatizados mais abrangentes
+4. refinar ainda mais o score composto por fonte/sinal
 5. observabilidade e alertas operacionais
 6. retry/idempotência de webhook
 eal
