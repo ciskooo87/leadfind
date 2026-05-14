@@ -12,6 +12,7 @@ class CompanyCreate(BaseModel):
     website: HttpUrl | None = None
     linkedin_url: HttpUrl | None = None
     aliases: list[str] = []
+    domains: list[str] = []
 
 
 class CompanyMatchRequest(BaseModel):
@@ -34,5 +35,6 @@ class CompanyRead(BaseModel):
     website: str | None = None
     linkedin_url: str | None = None
     aliases: list[str] = []
+    domains: list[str] = []
 
     model_config = {"from_attributes": True}

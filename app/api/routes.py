@@ -79,6 +79,15 @@ def _company_aliases(company: Company) -> list[str]:
     return [alias for alias in parsed if isinstance(alias, str)]
 
 
+def _company_domains(company: Company) -> list[str]:
+    raw = company.domains_json or '[]'
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    return [domain for domain in parsed if isinstance(domain, str)]
+
+
 def _build_company_read(company: Company) -> CompanyRead:
     return CompanyRead(
         id=company.id,
@@ -92,6 +101,7 @@ def _build_company_read(company: Company) -> CompanyRead:
         website=company.website,
         linkedin_url=company.linkedin_url,
         aliases=_company_aliases(company),
+        domains=_company_domains(company),
     )
 
 
@@ -261,7 +271,9 @@ def dispatch_company_to_webhook(target_id: int, company_id: int, db: Session = D
 def create_company(payload: CompanyCreate, db: Session = Depends(get_db)):
     data = to_db_payload(payload.model_dump(mode='python'))
     aliases = data.pop('aliases', [])
+    domains = data.pop('domains', [])
     data['aliases_json'] = json.dumps(aliases, ensure_ascii=False)
+    data['domains_json'] = json.dumps(domains, ensure_ascii=False)
     company = Company(**data)
     db.add(company)
     db.commit()

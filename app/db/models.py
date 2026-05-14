@@ -23,6 +23,7 @@ class Company(Base):
     website: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     linkedin_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     aliases_json: Mapped[str] = mapped_column(Text, default='[]')
+    domains_json: Mapped[str] = mapped_column(Text, default='[]')
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
     signals: Mapped[list["Signal"]] = relationship(back_populates="company", cascade="all, delete-orphan")

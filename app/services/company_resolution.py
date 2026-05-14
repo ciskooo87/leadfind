@@ -53,13 +53,24 @@ def _name_similarity(left: str, right: str) -> float:
     return min(max(ratio, overlap) + contains_bonus, 1.0)
 
 
-def _company_aliases(company: Company) -> list[str]:
-    raw = getattr(company, 'aliases_json', '[]') or '[]'
+def _load_json_list(raw: str | None) -> list[str]:
+    if not raw:
+        return []
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError:
         return []
-    return [alias for alias in parsed if isinstance(alias, str) and alias.strip()]
+    return [item for item in parsed if isinstance(item, str) and item.strip()]
+
+
+def _company_aliases(company: Company) -> list[str]:
+    return _load_json_list(getattr(company, 'aliases_json', '[]'))
+
+
+def _company_domains(company: Company) -> list[str]:
+    domains = [normalize_domain(company.website)] if company.website else []
+    domains.extend(normalize_domain(item) for item in _load_json_list(getattr(company, 'domains_json', '[]')))
+    return [item for item in domains if item]
 
 
 def _best_name_score(input_name: str, company: Company) -> float:
@@ -90,13 +101,13 @@ def _location_score(company: Company, normalized_city: str, normalized_state: st
 
 
 def _domain_score(input_domain: str, company: Company) -> float:
-    company_domain = normalize_domain(company.website)
-    if not input_domain or not company_domain:
+    if not input_domain:
         return 0.0
-    if input_domain == company_domain:
-        return 1.0
-    if input_domain.endswith(company_domain) or company_domain.endswith(input_domain):
-        return 0.8
+    for company_domain in _company_domains(company):
+        if input_domain == company_domain:
+            return 1.0
+        if input_domain.endswith(company_domain) or company_domain.endswith(input_domain):
+            return 0.8
     return 0.0
 
 

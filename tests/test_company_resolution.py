@@ -102,3 +102,25 @@ def test_create_company_and_match_by_alias(client):
 
     assert matched.status_code == 200
     assert matched.json()['id'] == body['id']
+
+
+def test_create_company_and_match_by_alternate_domain(client):
+    created = client.post('/companies', json={
+        'legal_name': 'Operadora X Logistica Ltda',
+        'trade_name': 'Operadora X',
+        'city': 'Osasco',
+        'state': 'SP',
+        'website': 'https://operadorax.com.br',
+        'domains': ['careers.operadorax.com.br', 'jobs.operadorax.com', 'portal.operadorax.com.br']
+    })
+
+    assert created.status_code == 200
+    body = created.json()
+    assert 'jobs.operadorax.com' in body['domains']
+
+    matched = client.post('/companies/match', json={
+        'website': 'https://jobs.operadorax.com/vagas/analista-financeiro'
+    })
+
+    assert matched.status_code == 200
+    assert matched.json()['id'] == body['id']
