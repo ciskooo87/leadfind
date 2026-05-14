@@ -1,6 +1,7 @@
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import ValidationError
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
@@ -133,7 +134,14 @@ def _get_latest_executive_snapshot(db: Session, company_id: int) -> LeadExecutiv
         raise HTTPException(status_code=404, detail='Lead not found')
 
     if snapshot.executive_payload:
-        return LeadExecutiveRead(**json.loads(snapshot.executive_payload))
+        try:
+            payload = json.loads(snapshot.executive_payload)
+            payload.setdefault('eixos_de_evidencia', [])
+            payload.setdefault('motivos_do_score', [])
+            payload.setdefault('qualidade_match', 'desconhecida')
+            return LeadExecutiveRead(**payload)
+        except (json.JSONDecodeError, ValidationError, TypeError):
+            pass
 
     company = db.get(Company, company_id)
     if not company:
