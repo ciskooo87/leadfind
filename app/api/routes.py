@@ -164,6 +164,14 @@ def list_sources(db: Session = Depends(get_db)):
     return db.query(Source).order_by(Source.name.asc()).all()
 
 
+@router.post('/discovery/run', response_model=DiscoveryRunResponse)
+def run_discovery_route(payload: DiscoveryRunRequest, db: Session = Depends(get_db)):
+    try:
+        return run_discovery(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.get('/leads/ranking', response_model=LeadRankingResponse)
 def get_leads_ranking(
     limit: int = Query(default=20, ge=1, le=100),
