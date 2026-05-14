@@ -23,8 +23,12 @@ def test_generate_executive_lead_and_ranking(client):
 
     executive = client.get(f'/leads/{company_id}/executive')
     assert executive.status_code == 200
-    assert executive.json()['empresa'] == 'Distribuidora Modelo'
-    assert executive.json()['produto_mais_indicado']
+    body = executive.json()
+    assert body['empresa'] == 'Distribuidora Modelo'
+    assert body['produto_mais_indicado']
+    assert body['eixos_de_evidencia']
+    assert 'legal' in body['eixos_de_evidencia']
+    assert body['motivos_do_score']
 
     ranking = client.get('/leads/ranking?min_score=60')
     assert ranking.status_code == 200

@@ -29,6 +29,8 @@ class LeadExecutiveRead(BaseModel):
     probabilidade_conversao: str
     score_bucket: str
     principais_sinais_detectados: list[str]
+    eixos_de_evidencia: list[str]
+    motivos_do_score: list[str]
     contexto_operacional: str
     hipotese_de_dor: str
     melhor_abordagem_comercial: str
