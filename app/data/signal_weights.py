@@ -9,6 +9,10 @@ SIGNAL_WEIGHTS = {
         "billing_delay_complaints": 7,
         "payment_delay_complaints": 8,
         "legal_collection_growth": 12,
+        "capital_increase_signal": 9,
+        "credit_bureau_negative_signal": 15,
+        "credit_score_drop_signal": 11,
+        "overdue_debt_signal": 14,
     },
     "operations": {
         "new_branch": 10,
@@ -20,6 +24,7 @@ SIGNAL_WEIGHTS = {
         "delivery_delay_complaints": 8,
         "service_breakdown_complaints": 7,
         "logistics_complaints": 7,
+        "corporate_change_signal": 6,
     },
     "digital": {
         "erp_change": 10,

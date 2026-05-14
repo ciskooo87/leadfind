@@ -89,7 +89,7 @@ def _tier(score: float) -> str:
 
 
 def _source_buckets(signals: list[Signal]) -> dict[str, int]:
-    counts = {"jobs": 0, "news": 0, "legal": 0, "reputation": 0, "other": 0}
+    counts = {"jobs": 0, "news": 0, "legal": 0, "reputation": 0, "formal": 0, "credit": 0, "other": 0}
     for signal in signals:
         source_name = signal.source_name.lower()
         if source_name in {"linkedin jobs", "indeed", "gupy", "greenhouse", "lever", "workday", "corporate careers"}:
@@ -100,6 +100,10 @@ def _source_buckets(signals: list[Signal]) -> dict[str, int]:
             counts["legal"] += 1
         elif source_name in {"reclamações operacionais", "reclamacoes operacionais"}:
             counts["reputation"] += 1
+        elif source_name in {"atos formais"}:
+            counts["formal"] += 1
+        elif source_name in {"serasa"}:
+            counts["credit"] += 1
         else:
             counts["other"] += 1
     return counts
@@ -133,6 +137,27 @@ def _cross_source_bonus(source_buckets: dict[str, int], counter: Counter) -> tup
     if source_buckets["news"] and source_buckets["legal"] and source_buckets["reputation"]:
         bonus += 14
         reasons.append("news+legal+reputation")
+    if source_buckets["credit"] and source_buckets["legal"]:
+        bonus += 18
+        reasons.append("credit+legal")
+    if source_buckets["credit"] and source_buckets["reputation"]:
+        bonus += 14
+        reasons.append("credit+reputation")
+    if source_buckets["formal"] and source_buckets["jobs"]:
+        bonus += 12
+        reasons.append("formal+jobs")
+    if source_buckets["formal"] and source_buckets["reputation"]:
+        bonus += 10
+        reasons.append("formal+reputation")
+    if source_buckets["formal"] and source_buckets["credit"]:
+        bonus += 13
+        reasons.append("formal+credit")
+    if source_buckets["formal"] and source_buckets["legal"]:
+        bonus += 11
+        reasons.append("formal+legal")
+    if source_buckets["credit"] and source_buckets["legal"] and source_buckets["reputation"]:
+        bonus += 16
+        reasons.append("credit+legal+reputation")
 
     if counter["financial_restructuring"] and counter["judicial_recovery_signal"]:
         bonus += 10
@@ -158,15 +183,34 @@ def _cross_source_bonus(source_buckets: dict[str, int], counter: Counter) -> tup
     if counter["new_branch"] and counter["delivery_delay_complaints"]:
         bonus += 7
         reasons.append("expansion+operational_breakdown")
+    if counter["credit_bureau_negative_signal"] and counter["execution_process"]:
+        bonus += 12
+        reasons.append("negative_credit+execution")
+    if counter["overdue_debt_signal"] and counter["billing_delay_complaints"]:
+        bonus += 11
+        reasons.append("overdue_debt+billing_delay")
+    if counter["capital_increase_signal"] and counter["erp_implementation"]:
+        bonus += 8
+        reasons.append("capital_increase+erp_implementation")
+    if counter["capital_increase_signal"] and counter["new_branch"]:
+        bonus += 9
+        reasons.append("capital_increase+new_branch")
+    if counter["corporate_change_signal"] and counter["delivery_delay_complaints"]:
+        bonus += 7
+        reasons.append("corporate_change+operational_stress")
 
     return bonus, reasons
 
 
 def _product_recommendation(counter: Counter, source_buckets: dict[str, int], score: float) -> str:
+    if source_buckets["credit"] and source_buckets["legal"]:
+        return "capital de giro emergencial / crédito estruturado"
     if counter["judicial_recovery_signal"] or counter["financial_restructuring"]:
         return "crédito estruturado / reestruturação financeira"
     if source_buckets["reputation"] and source_buckets["legal"]:
         return "capital de giro emergencial / reestruturação consultiva"
+    if source_buckets["formal"] and source_buckets["jobs"]:
+        return "funding de expansão / antecipação de recebíveis"
     if source_buckets["legal"] and source_buckets["news"]:
         return "capital de giro estruturado / FIDC performado"
     if counter["erp_change"] or counter["erp_implementation"]:
@@ -179,6 +223,12 @@ def _product_recommendation(counter: Counter, source_buckets: dict[str, int], sc
 
 
 def _pain_and_approach(counter: Counter, source_buckets: dict[str, int]) -> tuple[str, str, str]:
+    if source_buckets["credit"] and source_buckets["legal"]:
+        return (
+            "Sinais de crédito e pressão jurídica sugerem deterioração concreta de liquidez, maior urgência financeira e risco de agravamento rápido.",
+            "Abordagem consultiva sênior, direta e orientada a liquidez imediata, reequilíbrio de passivos e proteção operacional.",
+            "imediato, com prioridade máxima"
+        )
     if counter["judicial_recovery_signal"] or counter["financial_restructuring"]:
         return (
             "Sinais jurídicos e financeiros sugerem estresse relevante, possível deterioração de caixa e necessidade de reestruturação.",
@@ -190,6 +240,12 @@ def _pain_and_approach(counter: Counter, source_buckets: dict[str, int]) -> tupl
             "Há combinação de dor operacional visível no mercado com pressão jurídica/financeira, sugerindo tensão concreta na operação e no caixa.",
             "Abordagem consultiva, direta e orientada a estabilização operacional, liquidez e reorganização do ciclo financeiro.",
             "imediato, enquanto a dor está pública e relevante"
+        )
+    if source_buckets["formal"] and source_buckets["jobs"]:
+        return (
+            "Movimentos formais de expansão e reforço organizacional sugerem crescimento em curso com provável pressão sobre capital de giro e execução.",
+            "Abordagem orientada a funding de expansão, previsibilidade de caixa e suporte à execução do crescimento.",
+            "imediato, antes de a expansão consumir liquidez"
         )
     if source_buckets["news"] and source_buckets["jobs"]:
         return (
@@ -270,7 +326,7 @@ def score_company(company: Company, signals: list[Signal]) -> ScoreResult:
 
     summary = (
         f"Empresa com {len(signals)} sinais monitorados. Principais gatilhos detectados: {top_signals}. "
-        f"Distribuição por fonte: jobs={source_buckets['jobs']}, news={source_buckets['news']}, legal={source_buckets['legal']}, reputation={source_buckets['reputation']}. "
+        f"Distribuição por fonte: jobs={source_buckets['jobs']}, news={source_buckets['news']}, legal={source_buckets['legal']}, reputation={source_buckets['reputation']}, formal={source_buckets['formal']}, credit={source_buckets['credit']}. "
         f"Score calculado em {score}, sugerindo probabilidade {conversion} de necessidade de capital ou eficiência financeira."
     )
 
