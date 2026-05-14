@@ -42,6 +42,10 @@ def normalize_raw_event(db: Session, raw_event: RawEvent) -> RawEvent:
         return normalize_legal_raw_event(db, raw_event)
     if source and source.source_type == 'reputation':
         return normalize_reputation_raw_event(db, raw_event)
+    if source and source.source_type == 'formal':
+        return normalize_formal_raw_event(db, raw_event)
+    if source and source.source_type == 'credit':
+        return normalize_serasa_raw_event(db, raw_event)
 
     company = match_company(
         db,

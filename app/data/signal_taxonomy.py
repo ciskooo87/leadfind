@@ -32,4 +32,6 @@ SOURCE_SEEDS = [
     {"name": "JusBrasil", "source_type": "legal", "reliability_score": 0.78},
     {"name": "Notícias Regionais", "source_type": "news", "reliability_score": 0.74},
     {"name": "Reclamações Operacionais", "source_type": "reputation", "reliability_score": 0.77},
+    {"name": "Atos Formais", "source_type": "formal", "reliability_score": 0.8},
+    {"name": "Serasa", "source_type": "credit", "reliability_score": 0.86},
 ]

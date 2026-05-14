@@ -94,6 +94,8 @@ Formato JSONL esperado: um evento por linha, com pelo menos:
 - `POST /providers/generic-html-news/collect`
 - `POST /providers/generic-html-legal/collect`
 - `POST /providers/jusbrasil/collect`
+- `POST /providers/formal-acts/collect`
+- `POST /providers/serasa/collect`
 - `POST /providers/generic-html-reputation/collect`
 - `POST /providers/reclame-aqui/collect`
 - `GET /watchlists`
