@@ -1,3 +1,4 @@
+from difflib import SequenceMatcher
 from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
@@ -23,8 +24,69 @@ def normalize_domain(url: str | None) -> str:
 
 def normalize_company_token(name: str | None) -> str:
     normalized = normalize_text(name)
-    parts = [part for part in normalized.replace('/', ' ').replace('-', ' ').split() if part and part not in LEGAL_SUFFIXES]
+    parts = [
+        part
+        for part in normalized.replace('/', ' ').replace('-', ' ').split()
+        if part and part not in LEGAL_SUFFIXES
+    ]
     return ' '.join(parts)
+
+
+def _token_set(value: str) -> set[str]:
+    return {part for part in value.split() if part}
+
+
+def _name_similarity(left: str, right: str) -> float:
+    if not left or not right:
+        return 0.0
+    if left == right:
+        return 1.0
+    left_tokens = _token_set(left)
+    right_tokens = _token_set(right)
+    if not left_tokens or not right_tokens:
+        return 0.0
+
+    overlap = len(left_tokens & right_tokens) / max(len(left_tokens | right_tokens), 1)
+    ratio = SequenceMatcher(None, left, right).ratio()
+    contains_bonus = 0.12 if left in right or right in left else 0.0
+    return min(max(ratio, overlap) + contains_bonus, 1.0)
+
+
+def _best_name_score(input_name: str, company: Company) -> float:
+    candidates = [
+        normalize_company_token(company.legal_name),
+        normalize_company_token(company.trade_name),
+    ]
+    return max((_name_similarity(input_name, candidate) for candidate in candidates if candidate), default=0.0)
+
+
+def _location_score(company: Company, normalized_city: str, normalized_state: str) -> float:
+    company_city = normalize_text(company.city)
+    company_state = normalize_text(company.state)
+
+    score = 0.0
+    if normalized_city and company_city:
+        if normalized_city == company_city:
+            score += 0.2
+        elif normalized_city in company_city or company_city in normalized_city:
+            score += 0.08
+
+    if normalized_state and company_state:
+        if normalized_state == company_state:
+            score += 0.1
+
+    return score
+
+
+def _domain_score(input_domain: str, company: Company) -> float:
+    company_domain = normalize_domain(company.website)
+    if not input_domain or not company_domain:
+        return 0.0
+    if input_domain == company_domain:
+        return 1.0
+    if input_domain.endswith(company_domain) or company_domain.endswith(input_domain):
+        return 0.8
+    return 0.0
 
 
 def match_company(
@@ -48,34 +110,41 @@ def match_company(
                 return company
 
     if normalized_domain:
-        for company in companies:
-            if normalize_domain(company.website) == normalized_domain:
-                return company
+        exact_domain_matches = [company for company in companies if _domain_score(normalized_domain, company) >= 1.0]
+        if len(exact_domain_matches) == 1:
+            return exact_domain_matches[0]
+        if len(exact_domain_matches) > 1:
+            scored = sorted(
+                exact_domain_matches,
+                key=lambda company: _location_score(company, normalized_city, normalized_state),
+                reverse=True,
+            )
+            return scored[0]
 
-    if normalized_name:
-        exact_candidates: list[Company] = []
-        partial_candidates: list[Company] = []
-        for company in companies:
-            legal = normalize_company_token(company.legal_name)
-            trade = normalize_company_token(company.trade_name)
-            names = {legal, trade}
-            if normalized_name in names:
-                exact_candidates.append(company)
-                continue
-            if normalized_name and any(normalized_name in candidate or candidate in normalized_name for candidate in names if candidate):
-                partial_candidates.append(company)
+    best_company: Company | None = None
+    best_score = 0.0
 
-        for candidate in exact_candidates + partial_candidates:
-            company_city = normalize_text(candidate.city)
-            company_state = normalize_text(candidate.state)
-            city_ok = not normalized_city or normalized_city == company_city
-            state_ok = not normalized_state or normalized_state == company_state
-            if city_ok and state_ok:
-                return candidate
+    for company in companies:
+        score = 0.0
+        domain_score = _domain_score(normalized_domain, company)
+        if domain_score:
+            score += domain_score
 
-        if exact_candidates:
-            return exact_candidates[0]
-        if partial_candidates:
-            return partial_candidates[0]
+        name_score = _best_name_score(normalized_name, company)
+        if normalized_name:
+            score += name_score
+
+        score += _location_score(company, normalized_city, normalized_state)
+
+        if normalized_name and name_score < 0.45 and domain_score < 0.8:
+            continue
+
+        if score > best_score:
+            best_company = company
+            best_score = score
+
+    threshold = 0.75 if normalized_domain else 0.9 if normalized_name else 0.0
+    if best_company and best_score >= threshold:
+        return best_company
 
     return None

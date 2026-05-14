@@ -5,7 +5,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-TEST_DB = Path('/tmp/leadfind_test.db')
+TEST_DB_DIR = Path(__file__).resolve().parents[1] / '.testdata'
+TEST_DB_DIR.mkdir(exist_ok=True)
+TEST_DB = TEST_DB_DIR / 'leadfind_test.db'
 os.environ['DATABASE_URL'] = f'sqlite:///{TEST_DB}'
 
 from alembic import command
@@ -16,8 +18,9 @@ from app.db.session import SessionLocal
 
 @pytest.fixture(scope='session', autouse=True)
 def prepare_db():
-    if TEST_DB.exists():
-        TEST_DB.unlink()
+    for path in [TEST_DB, TEST_DB.with_suffix('.db-shm'), TEST_DB.with_suffix('.db-wal')]:
+        if path.exists():
+            path.unlink()
     cfg = Config(str(Path(__file__).resolve().parents[1] / 'alembic.ini'))
     command.upgrade(cfg, 'head')
     yield
