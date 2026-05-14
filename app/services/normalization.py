@@ -2,9 +2,13 @@ from sqlalchemy.orm import Session
 
 from app.data.signal_taxonomy import JOB_SIGNAL_RULES
 from app.db.models import RawEvent, Signal, Source
+from app.services.company_enrichment import enrich_company_from_raw_event
 from app.services.company_resolution import match_company
+from app.services.formal_normalization import normalize_formal_raw_event
 from app.services.legal_normalization import normalize_legal_raw_event
 from app.services.news_normalization import normalize_news_raw_event
+from app.services.reputation_normalization import normalize_reputation_raw_event
+from app.services.serasa_normalization import normalize_serasa_raw_event
 from app.services.text_utils import normalize_text
 
 
@@ -56,14 +60,15 @@ def normalize_raw_event(db: Session, raw_event: RawEvent) -> RawEvent:
     )
     if company:
         raw_event.company_id = company.id
+        enrich_company_from_raw_event(db, company, raw_event)
 
     inferred_signals: list[tuple[str, str, float]] = []
-    if source and source.source_type == "jobs":
+    if source and source.source_type == 'jobs':
         inferred_signals = infer_signals_from_job_text(f"{raw_event.title or ''} {raw_event.content}")
 
     if inferred_signals:
-        raw_event.normalized_signal_type = ",".join(signal_type for _, signal_type, _ in inferred_signals)
-        raw_event.normalized_status = "normalized"
+        raw_event.normalized_signal_type = ','.join(signal_type for _, signal_type, _ in inferred_signals)
+        raw_event.normalized_status = 'normalized'
         raw_event.confidence = max(raw_event.confidence, max(conf for _, _, conf in inferred_signals))
 
         if company:
@@ -83,9 +88,9 @@ def normalize_raw_event(db: Session, raw_event: RawEvent) -> RawEvent:
                 )
                 db.add(signal)
                 created_any = True
-            raw_event.normalized_status = "signal_created" if created_any else "duplicate_signal"
+            raw_event.normalized_status = 'signal_created' if created_any else 'duplicate_signal'
     else:
-        raw_event.normalized_status = "ignored"
+        raw_event.normalized_status = 'ignored'
 
     db.add(raw_event)
     db.commit()

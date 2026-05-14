@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 
 from app.data.news_taxonomy import NEWS_SIGNAL_RULES
 from app.db.models import RawEvent, Signal, Source
+from app.services.company_enrichment import enrich_company_from_raw_event
 from app.services.company_resolution import match_company
 from app.services.text_utils import normalize_text
 
@@ -43,6 +44,7 @@ def normalize_news_raw_event(db: Session, raw_event: RawEvent) -> RawEvent:
     )
     if company:
         raw_event.company_id = company.id
+        enrich_company_from_raw_event(db, company, raw_event)
 
     inferred_signals: list[tuple[str, str, float]] = []
     if source and source.source_type == 'news':
