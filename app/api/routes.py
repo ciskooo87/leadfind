@@ -7,34 +7,63 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.db.models import Company, LeadSnapshot, RawEvent, Signal, Source, Watchlist, WebhookTarget
 from app.schemas.company import CompanyCreate, CompanyMatchRequest, CompanyRead
+from app.schemas.formal import FormalActsCollectRequest
 from app.schemas.lead import LeadExecutiveRead, LeadRead
 from app.schemas.legal import GenericHtmlLegalCollectRequest
+from app.schemas.legal_specific import JusBrasilCollectRequest
 from app.schemas.news import GenericHtmlNewsCollectRequest
+from app.schemas.news_specific import RegionalNewsCollectRequest
 from app.schemas.provider import GenericHtmlJobsCollectRequest, JsonJobsCollectRequest, JsonLdJobsCollectRequest
-from app.schemas.reputation import GenericHtmlReputationCollectRequest
-from app.schemas.reputation_specific import ReclameAquiCollectRequest
-from app.schemas.provider_specific import GreenhouseJobsCollectRequest, GupyJobsCollectRequest, LeverJobsCollectRequest
+from app.schemas.provider_specific import (
+    GreenhouseJobsCollectRequest,
+    GupyJobsCollectRequest,
+    LeverJobsCollectRequest,
+    WorkdayJobsCollectRequest,
+)
 from app.schemas.ranking import LeadRankingResponse
 from app.schemas.raw_event import RawEventBatchCreate, RawEventCreate, RawEventRead
+from app.schemas.reputation import GenericHtmlReputationCollectRequest
+from app.schemas.reputation_specific import ReclameAquiCollectRequest
+from app.schemas.serasa import SerasaCollectRequest
 from app.schemas.signal import SignalCreate, SignalRead
 from app.schemas.source import SourceRead
-from app.schemas.watchlist import WatchlistCreate, WatchlistRead, WatchlistRunLogRead, WatchlistRunResult, WatchlistSchedulerRunResponse
+from app.schemas.watchlist import (
+    WatchlistCreate,
+    WatchlistRead,
+    WatchlistRunLogRead,
+    WatchlistRunResult,
+    WatchlistSchedulerRunResponse,
+)
 from app.schemas.webhook import WebhookDeliveryRead, WebhookTargetCreate, WebhookTargetRead
 from app.services.bootstrap import seed_sources
 from app.services.company_resolution import match_company
-from app.services.exporters import executive_lead_to_csv_bytes, executive_lead_to_json_bytes, ranking_to_csv_bytes, ranking_to_json_bytes
+from app.services.exporters import (
+    executive_lead_to_csv_bytes,
+    executive_lead_to_json_bytes,
+    ranking_to_csv_bytes,
+    ranking_to_json_bytes,
+)
+from app.services.formal_ingestion import collect_formal_acts_like
 from app.services.ingestion import ingest_raw_events
 from app.services.lead_formatter import format_executive_lead
 from app.services.lead_generation import generate_lead_snapshot
 from app.services.lead_ranking import rank_latest_leads
-from app.services.formal_ingestion import collect_formal_acts_like
 from app.services.legal_ingestion import collect_generic_html_legal, collect_jusbrasil_like
 from app.services.news_ingestion import collect_generic_html_news, collect_regional_news_like
-from app.services.serasa_ingestion import collect_serasa_like
 from app.services.normalization import normalize_raw_event
 from app.services.payloads import to_db_payload
-from app.services.provider_ingestion import collect_generic_html_jobs, collect_greenhouse_jobs, collect_gupy_jobs, collect_json_jobs, collect_jsonld_jobs, collect_lever_jobs
+from app.services.provider_ingestion import (
+    collect_generic_html_jobs,
+    collect_greenhouse_jobs,
+    collect_gupy_jobs,
+    collect_json_jobs,
+    collect_jsonld_jobs,
+    collect_lever_jobs,
+    collect_workday_jobs,
+)
+from app.services.reputation_ingestion import collect_generic_html_reputation, collect_reclame_aqui_like
 from app.services.scoring import score_company
+from app.services.serasa_ingestion import collect_serasa_like
 from app.services.watchlists import create_watchlist, list_watchlist_runs, list_watchlists, run_due_watchlists, run_watchlist
 from app.services.webhooks import create_webhook_target, deliver_lead_snapshot, dispatch_latest_leads, list_webhook_deliveries, list_webhook_targets
 
@@ -74,6 +103,7 @@ def _get_latest_executive_snapshot(db: Session, company_id: int) -> LeadExecutiv
     company = db.get(Company, company_id)
     if not company:
         raise HTTPException(status_code=404, detail='Company not found')
+
     signals = db.query(Signal).filter(Signal.company_id == company_id).order_by(Signal.detected_at.desc()).all()
     result = score_company(company, signals)
     return format_executive_lead(company, signals, result)
@@ -92,16 +122,37 @@ def list_sources(db: Session = Depends(get_db)):
 
 
 @router.get('/leads/ranking', response_model=LeadRankingResponse)
-def get_leads_ranking(limit: int = Query(default=20, ge=1, le=100), min_score: float | None = Query(default=None, ge=0, le=100), tier: str | None = Query(default=None), sector: str | None = Query(default=None), db: Session = Depends(get_db)):
+def get_leads_ranking(
+    limit: int = Query(default=20, ge=1, le=100),
+    min_score: float | None = Query(default=None, ge=0, le=100),
+    tier: str | None = Query(default=None),
+    sector: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
     return rank_latest_leads(db, limit=limit, min_score=min_score, tier=tier, sector=sector)
 
 
 @router.get('/leads/ranking/export')
-def export_leads_ranking(format: str = Query(default='json', pattern='^(json|csv)$'), limit: int = Query(default=20, ge=1, le=100), min_score: float | None = Query(default=None, ge=0, le=100), tier: str | None = Query(default=None), sector: str | None = Query(default=None), db: Session = Depends(get_db)):
+def export_leads_ranking(
+    format: str = Query(default='json', pattern='^(json|csv)$'),
+    limit: int = Query(default=20, ge=1, le=100),
+    min_score: float | None = Query(default=None, ge=0, le=100),
+    tier: str | None = Query(default=None),
+    sector: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
     ranking = rank_latest_leads(db, limit=limit, min_score=min_score, tier=tier, sector=sector)
     if format == 'csv':
-        return Response(content=ranking_to_csv_bytes(ranking), media_type='text/csv', headers={'Content-Disposition': 'attachment; filename=lead-ranking.csv'})
-    return Response(content=ranking_to_json_bytes(ranking), media_type='application/json', headers={'Content-Disposition': 'attachment; filename=lead-ranking.json'})
+        return Response(
+            content=ranking_to_csv_bytes(ranking),
+            media_type='text/csv',
+            headers={'Content-Disposition': 'attachment; filename=lead-ranking.csv'},
+        )
+    return Response(
+        content=ranking_to_json_bytes(ranking),
+        media_type='application/json',
+        headers={'Content-Disposition': 'attachment; filename=lead-ranking.json'},
+    )
 
 
 @router.get('/watchlists', response_model=list[WatchlistRead])
@@ -169,7 +220,13 @@ def dispatch_company_to_webhook(target_id: int, company_id: int, db: Session = D
     target = db.get(WebhookTarget, target_id)
     if not target:
         raise HTTPException(status_code=404, detail='Webhook target not found')
-    snapshot = db.query(LeadSnapshot).filter(LeadSnapshot.company_id == company_id).order_by(LeadSnapshot.created_at.desc()).first()
+
+    snapshot = (
+        db.query(LeadSnapshot)
+        .filter(LeadSnapshot.company_id == company_id)
+        .order_by(LeadSnapshot.created_at.desc())
+        .first()
+    )
     if not snapshot:
         raise HTTPException(status_code=404, detail='Lead snapshot not found')
     return deliver_lead_snapshot(db, target, snapshot)
@@ -187,8 +244,14 @@ def create_company(payload: CompanyCreate, db: Session = Depends(get_db)):
 
 @router.post('/companies/match', response_model=CompanyRead | None)
 def resolve_company_match(payload: CompanyMatchRequest, db: Session = Depends(get_db)):
-    company = match_company(db, company_name=payload.company_name, website=str(payload.website) if payload.website else None, city=payload.city, state=payload.state, cnpj_root=payload.cnpj_root)
-    return company
+    return match_company(
+        db,
+        company_name=payload.company_name,
+        website=str(payload.website) if payload.website else None,
+        city=payload.city,
+        state=payload.state,
+        cnpj_root=payload.cnpj_root,
+    )
 
 
 @router.post('/signals', response_model=SignalRead)
@@ -210,10 +273,16 @@ def create_raw_event(payload: RawEventCreate, db: Session = Depends(get_db)):
     source = db.query(Source).filter(Source.name == payload.source_name).first()
     if not source:
         raise HTTPException(status_code=404, detail='Source not found')
+
     if payload.external_id:
-        existing = db.query(RawEvent).filter(RawEvent.source_id == source.id, RawEvent.external_id == payload.external_id).first()
+        existing = (
+            db.query(RawEvent)
+            .filter(RawEvent.source_id == source.id, RawEvent.external_id == payload.external_id)
+            .first()
+        )
         if existing:
             return existing
+
     data = to_db_payload(payload.model_dump(mode='python'))
     data.pop('source_name')
     raw_event = RawEvent(source_id=source.id, **data)
@@ -303,10 +372,58 @@ def collect_news_from_generic_html(payload: GenericHtmlNewsCollectRequest, db: S
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.post('/providers/regional-news/collect', response_model=list[RawEventRead])
+def collect_regional_news(payload: RegionalNewsCollectRequest, db: Session = Depends(get_db)):
+    try:
+        return collect_regional_news_like(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.post('/providers/generic-html-legal/collect', response_model=list[RawEventRead])
 def collect_legal_from_generic_html(payload: GenericHtmlLegalCollectRequest, db: Session = Depends(get_db)):
     try:
         return collect_generic_html_legal(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post('/providers/jusbrasil/collect', response_model=list[RawEventRead])
+def collect_jusbrasil(payload: JusBrasilCollectRequest, db: Session = Depends(get_db)):
+    try:
+        return collect_jusbrasil_like(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post('/providers/formal-acts/collect', response_model=list[RawEventRead])
+def collect_formal_acts(payload: FormalActsCollectRequest, db: Session = Depends(get_db)):
+    try:
+        return collect_formal_acts_like(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post('/providers/generic-html-reputation/collect', response_model=list[RawEventRead])
+def collect_reputation_from_generic_html(payload: GenericHtmlReputationCollectRequest, db: Session = Depends(get_db)):
+    try:
+        return collect_generic_html_reputation(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post('/providers/reclame-aqui/collect', response_model=list[RawEventRead])
+def collect_reclame_aqui(payload: ReclameAquiCollectRequest, db: Session = Depends(get_db)):
+    try:
+        return collect_reclame_aqui_like(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post('/providers/serasa/collect', response_model=list[RawEventRead])
+def collect_serasa(payload: SerasaCollectRequest, db: Session = Depends(get_db)):
+    try:
+        return collect_serasa_like(db, payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -322,8 +439,13 @@ def generate_lead(company_id: int, db: Session = Depends(get_db)):
 
 @router.get('/leads/{company_id}', response_model=list[LeadRead])
 def list_leads(company_id: int, db: Session = Depends(get_db)):
-    snapshots = db.query(LeadSnapshot).filter(LeadSnapshot.company_id == company_id).order_by(LeadSnapshot.created_at.desc()).all()
-    return [_build_lead_read(s) for s in snapshots]
+    snapshots = (
+        db.query(LeadSnapshot)
+        .filter(LeadSnapshot.company_id == company_id)
+        .order_by(LeadSnapshot.created_at.desc())
+        .all()
+    )
+    return [_build_lead_read(snapshot) for snapshot in snapshots]
 
 
 @router.get('/leads/{company_id}/executive', response_model=LeadExecutiveRead)
@@ -332,14 +454,20 @@ def get_latest_executive_lead(company_id: int, db: Session = Depends(get_db)):
 
 
 @router.get('/leads/{company_id}/executive/export')
-def export_executive_lead(company_id: int, format: str = Query(default='json', pattern='^(json|csv)$'), db: Session = Depends(get_db)):
+def export_executive_lead(
+    company_id: int,
+    format: str = Query(default='json', pattern='^(json|csv)$'),
+    db: Session = Depends(get_db),
+):
     lead = _get_latest_executive_snapshot(db, company_id)
     if format == 'csv':
-        return Response(content=executive_lead_to_csv_bytes(lead), media_type='text/csv', headers={'Content-Disposition': f'attachment; filename=lead-{company_id}.csv'})
-    return Response(content=executive_lead_to_json_bytes(lead), media_type='application/json', headers={'Content-Disposition': f'attachment; filename=lead-{company_id}.json'})
-executive_lead_to_csv_bytes(lead), media_type='text/csv', headers={'Content-Disposition': f'attachment; filename=lead-{company_id}.csv'})
-    return Response(content=executive_lead_to_json_bytes(lead), media_type='application/json', headers={'Content-Disposition': f'attachment; filename=lead-{company_id}.json'})
-nt; filename=lead-{company_id}.json'})
-media_type='text/csv', headers={'Content-Disposition': f'attachment; filename=lead-{company_id}.csv'})
-    return Response(content=executive_lead_to_json_bytes(lead), media_type='application/json', headers={'Content-Disposition': f'attachment; filename=lead-{company_id}.json'})
-nt; filename=lead-{company_id}.json'})
+        return Response(
+            content=executive_lead_to_csv_bytes(lead),
+            media_type='text/csv',
+            headers={'Content-Disposition': f'attachment; filename=lead-{company_id}.csv'},
+        )
+    return Response(
+        content=executive_lead_to_json_bytes(lead),
+        media_type='application/json',
+        headers={'Content-Disposition': f'attachment; filename=lead-{company_id}.json'},
+    )

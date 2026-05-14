@@ -7,8 +7,14 @@ from app.collectors.jobs_importer import provider_event_to_raw_event
 from app.collectors.json_jobs_provider import fetch_jobs_from_json_feed
 from app.collectors.jsonld_jobs_provider import fetch_jobs_from_jsonld
 from app.collectors.lever_jobs_provider import fetch_jobs_from_lever_html
+from app.collectors.workday_jobs_provider import fetch_jobs_from_workday_html
 from app.schemas.provider import GenericHtmlJobsCollectRequest, JsonJobsCollectRequest, JsonLdJobsCollectRequest
-from app.schemas.provider_specific import GreenhouseJobsCollectRequest, GupyJobsCollectRequest, LeverJobsCollectRequest
+from app.schemas.provider_specific import (
+    GreenhouseJobsCollectRequest,
+    GupyJobsCollectRequest,
+    LeverJobsCollectRequest,
+    WorkdayJobsCollectRequest,
+)
 from app.services.ingestion import ingest_raw_events
 
 

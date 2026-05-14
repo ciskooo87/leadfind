@@ -17,11 +17,15 @@ def _absolute_url(base_url: str, href: str | None) -> str | None:
 def _extract_company_from_url(url: str) -> str | None:
     parsed = urlparse(url)
     host = parsed.netloc.lower().replace('www.', '')
-    path_parts = [part for part in parsed.path.split('/') if part]
-    if path_parts:
-        first = path_parts[0].strip()
-        if first and first not in {'en-us', 'careers', 'job'}:
-            return first.replace('-', ' ') or None
+    path_parts = [part.strip() for part in parsed.path.split('/') if part and part.strip()]
+
+    for index, part in enumerate(path_parts):
+        normalized = part.lower()
+        if normalized in {'en-us', 'pt-br', 'es-es', 'fr-fr', 'recruiting', 'careers', 'job', 'jobs'}:
+            continue
+        if index > 0 and path_parts[index - 1].lower() == 'recruiting':
+            return part.replace('-', ' ')
+
     if host:
         subdomain = host.split('.')[0]
         if subdomain not in {'wd3', 'wd5', 'wd1', 'careers'}:
