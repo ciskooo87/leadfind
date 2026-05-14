@@ -13,3 +13,10 @@ class GreenhouseJobsCollectRequest(BaseModel):
     source_name: str = 'Greenhouse'
     confidence: float = 0.85
     normalize_after_insert: bool = True
+
+
+class LeverJobsCollectRequest(BaseModel):
+    url: HttpUrl
+    source_name: str = 'Lever'
+    confidence: float = 0.85
+    normalize_after_insert: bool = True

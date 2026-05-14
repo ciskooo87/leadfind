@@ -87,6 +87,8 @@ Formato JSONL esperado: um evento por linha, com pelo menos:
 - `GET /leads/ranking/export`
 - `GET /leads/{company_id}/executive/export`
 - `POST /providers/generic-html-jobs/collect`
+- `POST /providers/gupy-jobs/collect`
+- `POST /providers/greenhouse-jobs/collect`
 - `POST /providers/json-jobs/collect`
 - `POST /providers/jsonld-jobs/collect`
 - `POST /providers/generic-html-news/collect`
@@ -118,6 +120,12 @@ Esse adapter faz leitura específica de páginas no padrão Greenhouse/boards co
 
 Endpoint:
 - `POST /providers/greenhouse-jobs/collect`
+
+## Coleta via adapter Lever
+Esse adapter faz leitura específica de páginas no padrão Lever, com extração básica de vaga, localização e identificação da empresa pela URL.
+
+Endpoint:
+- `POST /providers/lever-jobs/collect`
 
 ## Coleta via provider JSON
 Esse provider permite consumir feeds estruturados em JSON, informando paths como:
@@ -230,6 +238,7 @@ Cobertura inicial inclui:
 - watchlists com geração automática de leads
 - auto-dispatch de webhooks
 - adapter Gupy básico
+- adapters Greenhouse e Lever
 
 ## Próximos passos
 1. criar adapters específicos adicionais por fonte real

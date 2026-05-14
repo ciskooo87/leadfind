@@ -1,8 +1,12 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+
+def utcnow_naive() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class Company(Base):
@@ -18,7 +22,7 @@ class Company(Base):
     estimated_size: Mapped[str | None] = mapped_column(String(50), nullable=True)
     website: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     linkedin_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
     signals: Mapped[list["Signal"]] = relationship(back_populates="company", cascade="all, delete-orphan")
     raw_events: Mapped[list["RawEvent"]] = relationship(back_populates="company")
@@ -37,7 +41,7 @@ class Signal(Base):
     source_name: Mapped[str] = mapped_column(String(100), nullable=False)
     source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     excerpt: Mapped[str] = mapped_column(Text, nullable=False)
-    detected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    detected_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive, index=True)
     confidence: Mapped[float] = mapped_column(Float, default=0.7)
     weight_override: Mapped[float | None] = mapped_column(Float, nullable=True)
 
@@ -60,7 +64,7 @@ class LeadSnapshot(Base):
     risk: Mapped[str] = mapped_column(String(120), nullable=False)
     score_explanation: Mapped[str] = mapped_column(Text, nullable=False)
     executive_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
 
 class Source(Base):
@@ -71,7 +75,7 @@ class Source(Base):
     source_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     reliability_score: Mapped[float] = mapped_column(Float, default=0.7)
     active: Mapped[str] = mapped_column(String(10), default="yes")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
     raw_events: Mapped[list["RawEvent"]] = relationship(back_populates="source")
 
@@ -93,11 +97,11 @@ class RawEvent(Base):
     company_website_raw: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     city_raw: Mapped[str | None] = mapped_column(String(120), nullable=True)
     state_raw: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    occurred_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive, index=True)
     normalized_status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
     normalized_signal_type: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     confidence: Mapped[float] = mapped_column(Float, default=0.7)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
     source: Mapped[Source] = relationship(back_populates="raw_events")
     company: Mapped[Company | None] = relationship(back_populates="raw_events")
@@ -114,7 +118,7 @@ class Watchlist(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     schedule_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
     run_logs: Mapped[list["WatchlistRunLog"]] = relationship(back_populates="watchlist", cascade="all, delete-orphan")
 
@@ -129,7 +133,7 @@ class WatchlistRunLog(Base):
     generated_leads: Mapped[int] = mapped_column(Integer, default=0)
     impacted_company_ids_json: Mapped[str] = mapped_column(Text, default="[]")
     detail: Mapped[str] = mapped_column(Text, default="")
-    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     watchlist: Mapped[Watchlist] = relationship(back_populates="run_logs")
@@ -144,7 +148,7 @@ class WebhookTarget(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     min_score: Mapped[float] = mapped_column(Float, default=60)
     lead_tiers: Mapped[str] = mapped_column(String(50), default="A,B")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
     deliveries: Mapped[list["WebhookDelivery"]] = relationship(back_populates="webhook_target", cascade="all, delete-orphan")
 
@@ -158,6 +162,6 @@ class WebhookDelivery(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     response_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
     response_body: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
     webhook_target: Mapped[WebhookTarget] = relationship(back_populates="deliveries")

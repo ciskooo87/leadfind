@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,10 @@ from app.services.lead_generation import generate_lead_snapshot
 from app.services.legal_ingestion import collect_generic_html_legal
 from app.services.news_ingestion import collect_generic_html_news
 from app.services.provider_ingestion import collect_generic_html_jobs, collect_json_jobs, collect_jsonld_jobs
+
+
+def _utcnow_naive() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def create_watchlist(db: Session, payload: WatchlistCreate) -> Watchlist:
@@ -61,7 +65,7 @@ def _execute_watchlist(db: Session, watchlist: Watchlist) -> WatchlistRunResult:
         generate_lead_snapshot(db, company_id)
         generated_leads += 1
 
-    watchlist.last_run_at = datetime.utcnow()
+    watchlist.last_run_at = _utcnow_naive()
     db.add(watchlist)
     db.commit()
     db.refresh(watchlist)
@@ -92,14 +96,14 @@ def run_watchlist(db: Session, watchlist: Watchlist) -> WatchlistRunResult:
         run_log.generated_leads = result.generated_leads
         run_log.impacted_company_ids_json = json.dumps(result.impacted_company_ids)
         run_log.detail = result.detail
-        run_log.finished_at = datetime.utcnow()
+        run_log.finished_at = _utcnow_naive()
         db.add(run_log)
         db.commit()
         return result
     except Exception as exc:
         run_log.status = 'error'
         run_log.detail = str(exc)
-        run_log.finished_at = datetime.utcnow()
+        run_log.finished_at = _utcnow_naive()
         db.add(run_log)
         db.commit()
         raise
@@ -109,7 +113,7 @@ def run_due_watchlists(db: Session) -> WatchlistSchedulerRunResponse:
     watchlists = db.query(Watchlist).filter(Watchlist.active.is_(True)).order_by(Watchlist.created_at.asc()).all()
     results: list[WatchlistRunResult] = []
     skipped = 0
-    now = datetime.utcnow()
+    now = _utcnow_naive()
 
     for watchlist in watchlists:
         if not watchlist.schedule_minutes:
