@@ -267,6 +267,14 @@ def collect_jobs_from_lever(payload: LeverJobsCollectRequest, db: Session = Depe
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.post('/providers/workday-jobs/collect', response_model=list[RawEventRead])
+def collect_jobs_from_workday(payload: WorkdayJobsCollectRequest, db: Session = Depends(get_db)):
+    try:
+        return collect_workday_jobs(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.post('/providers/json-jobs/collect', response_model=list[RawEventRead])
 def collect_jobs_from_json(payload: JsonJobsCollectRequest, db: Session = Depends(get_db)):
     try:

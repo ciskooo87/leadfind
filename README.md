@@ -127,6 +127,12 @@ Esse adapter faz leitura específica de páginas no padrão Lever, com extraçã
 Endpoint:
 - `POST /providers/lever-jobs/collect`
 
+## Coleta via adapter Workday
+Esse adapter faz leitura específica de páginas no padrão Workday-like, com extração básica de vaga, localização e identificação da empresa pela URL.
+
+Endpoint:
+- `POST /providers/workday-jobs/collect`
+
 ## Coleta via provider JSON
 Esse provider permite consumir feeds estruturados em JSON, informando paths como:
 - lista de itens
@@ -238,7 +244,7 @@ Cobertura inicial inclui:
 - watchlists com geração automática de leads
 - auto-dispatch de webhooks
 - adapter Gupy básico
-- adapters Greenhouse e Lever
+- adapters Greenhouse, Lever e Workday
 
 ## Próximos passos
 1. criar adapters específicos adicionais por fonte real

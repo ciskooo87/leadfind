@@ -20,3 +20,10 @@ class LeverJobsCollectRequest(BaseModel):
     source_name: str = 'Lever'
     confidence: float = 0.85
     normalize_after_insert: bool = True
+
+
+class WorkdayJobsCollectRequest(BaseModel):
+    url: HttpUrl
+    source_name: str = 'Workday'
+    confidence: float = 0.85
+    normalize_after_insert: bool = True

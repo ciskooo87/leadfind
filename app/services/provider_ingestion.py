@@ -87,3 +87,13 @@ def collect_lever_jobs(db: Session, payload: LeverJobsCollectRequest):
     )
     raw_events = [provider_event_to_raw_event(event) for event in provider_events]
     return ingest_raw_events(db, raw_events, normalize_after_insert=payload.normalize_after_insert)
+
+
+def collect_workday_jobs(db: Session, payload: WorkdayJobsCollectRequest):
+    provider_events = fetch_jobs_from_workday_html(
+        url=str(payload.url),
+        source_name=payload.source_name,
+        confidence=payload.confidence,
+    )
+    raw_events = [provider_event_to_raw_event(event) for event in provider_events]
+    return ingest_raw_events(db, raw_events, normalize_after_insert=payload.normalize_after_insert)
