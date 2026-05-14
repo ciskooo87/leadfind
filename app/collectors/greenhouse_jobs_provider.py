@@ -15,43 +15,32 @@ def _absolute_url(base_url: str, href: str | None) -> str | None:
 
 
 def _extract_company_from_url(url: str) -> str | None:
-    host = urlparse(url).netloc.lower()
+    parsed = urlparse(url)
+    host = parsed.netloc.lower().replace('www.', '')
+    path_parts = [part for part in parsed.path.split('/') if part]
+    if path_parts:
+        first = path_parts[0].strip()
+        if first and first not in {'jobs', 'boards', 'job-boards'}:
+            return first.replace('-', ' ') or None
     if not host:
         return None
-    host = host.replace('www.', '')
     subdomain = host.split('.')[0]
-    if subdomain in {'portal', 'jobs', 'careers'}:
+    if subdomain in {'boards', 'job-boards', 'jobs'}:
         return None
     return subdomain.replace('-', ' ').strip() or None
 
 
-def _clean_title(text: str) -> str:
-    text = re.sub(r'\s+', ' ', text).strip(' -|')
-    return text[:180]
-
-
-def _extract_location(text: str) -> tuple[str | None, str | None]:
-    match = re.search(r'\b([A-ZÁÂÃÉÊÍÓÔÕÚÇ][\wÁÂÃÉÊÍÓÔÕÚÇáâãéêíóôõúç-]+)\s*/\s*([A-Z]{2})\b', text)
-    if match:
-        return match.group(1), match.group(2)
-    match = re.search(r'\b([A-ZÁÂÃÉÊÍÓÔÕÚÇ][\wÁÂÃÉÊÍÓÔÕÚÇáâãéêíóôõúç-]+)\s+([A-Z]{2})\b', text)
-    if match:
-        return match.group(1), match.group(2)
-    return None, None
-
-
-def fetch_jobs_from_gupy_html(url: str, source_name: str = 'Gupy', confidence: float = 0.84) -> list[ProviderJobEvent]:
+def fetch_jobs_from_greenhouse_html(url: str, source_name: str = 'Greenhouse', confidence: float = 0.85) -> list[ProviderJobEvent]:
     html = fetch_text(url)
     soup = BeautifulSoup(html, 'html.parser')
     events: list[ProviderJobEvent] = []
+    seen_urls: set[str] = set()
 
     selectors = [
-        '[data-testid="job-list-item"]',
+        'section.opening a',
+        '.opening a',
         'a[href*="/jobs/"]',
-        'a[href*="gupy.io/jobs/"]',
-        '.job-list__listitem a',
     ]
-    seen_urls: set[str] = set()
 
     for selector in selectors:
         for node in soup.select(selector):
@@ -59,21 +48,24 @@ def fetch_jobs_from_gupy_html(url: str, source_name: str = 'Gupy', confidence: f
             text = node.get_text(' ', strip=True)
             if not href or not text or href in seen_urls:
                 continue
-            if '/jobs/' not in href and 'gupy.io/jobs' not in href:
-                continue
             seen_urls.add(href)
-            title = _clean_title(text)
-            city, state = _extract_location(text)
+            location_node = node.find_next(['span', 'div'], class_=re.compile('location', re.I)) if hasattr(node, 'find_next') else None
+            location_text = location_node.get_text(' ', strip=True) if location_node else ''
+            city = None
+            state = None
+            location_match = re.search(r'([^,]+),\s*([A-Z]{2})', location_text)
+            if location_match:
+                city = location_match.group(1).strip()
+                state = location_match.group(2).strip()
             external_id_match = re.search(r'/jobs/(\d+)', href)
             external_id = external_id_match.group(1) if external_id_match else href
-            company_name = _extract_company_from_url(url)
             events.append(ProviderJobEvent(
                 source_name=source_name,
                 external_id=external_id,
                 source_url=href,
-                title=title,
-                content=text,
-                company_name_raw=company_name,
+                title=text[:180],
+                content=' '.join(part for part in [text, location_text] if part),
+                company_name_raw=_extract_company_from_url(url),
                 city_raw=city,
                 state_raw=state,
                 confidence=confidence,
@@ -82,4 +74,4 @@ def fetch_jobs_from_gupy_html(url: str, source_name: str = 'Gupy', confidence: f
     return events
 
 
-register_provider('gupy_jobs', fetch_jobs_from_gupy_html)
+register_provider('greenhouse_jobs', fetch_jobs_from_greenhouse_html)

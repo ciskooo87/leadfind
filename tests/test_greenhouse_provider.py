@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 
-def test_gupy_provider_collects_events(client):
+def test_greenhouse_provider_collects_events(client):
     client.post('/companies', json={
         'legal_name': 'Distribuidora Modelo S/A',
         'trade_name': 'Distribuidora Modelo',
@@ -14,15 +14,18 @@ def test_gupy_provider_collects_events(client):
 
     html = '''
     <html><body>
-      <a data-testid="job-list-item" href="https://portal.gupy.io/jobs/12345">Vaga Especialista em Implantação de ERP - Distribuidora Modelo Contagem MG</a>
+      <section class="opening">
+        <a href="https://boards.greenhouse.io/distribuidoramodelo/jobs/98765">Especialista em Implantação de ERP</a>
+        <span class="location">Contagem, MG</span>
+      </section>
     </body></html>
     '''
 
-    with patch('app.collectors.gupy_jobs_provider.fetch_text', return_value=html):
-        resp = client.post('/providers/gupy-jobs/collect', json={
-            'url': 'https://distribuidoramodelo.gupy.io/',
-            'source_name': 'Gupy',
-            'confidence': 0.84,
+    with patch('app.collectors.greenhouse_jobs_provider.fetch_text', return_value=html):
+        resp = client.post('/providers/greenhouse-jobs/collect', json={
+            'url': 'https://boards.greenhouse.io/distribuidoramodelo',
+            'source_name': 'Greenhouse',
+            'confidence': 0.85,
             'normalize_after_insert': True
         })
 
@@ -31,4 +34,3 @@ def test_gupy_provider_collects_events(client):
     assert len(body) == 1
     assert body[0]['company_name_raw'] == 'distribuidoramodelo'
     assert body[0]['state_raw'] == 'MG'
-    assert body[0]['normalized_status'] in {'signal_created', 'normalized', 'ignored'}

@@ -113,6 +113,12 @@ Esse adapter faz uma leitura mais específica de páginas de vagas em padrão Gu
 Endpoint:
 - `POST /providers/gupy-jobs/collect`
 
+## Coleta via adapter Greenhouse
+Esse adapter faz leitura específica de páginas no padrão Greenhouse/boards corporativos, com extração básica de vaga e localização.
+
+Endpoint:
+- `POST /providers/greenhouse-jobs/collect`
+
 ## Coleta via provider JSON
 Esse provider permite consumir feeds estruturados em JSON, informando paths como:
 - lista de itens

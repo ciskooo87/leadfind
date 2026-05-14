@@ -11,7 +11,7 @@ from app.schemas.lead import LeadExecutiveRead, LeadRead
 from app.schemas.legal import GenericHtmlLegalCollectRequest
 from app.schemas.news import GenericHtmlNewsCollectRequest
 from app.schemas.provider import GenericHtmlJobsCollectRequest, JsonJobsCollectRequest, JsonLdJobsCollectRequest
-from app.schemas.provider_specific import GupyJobsCollectRequest
+from app.schemas.provider_specific import GreenhouseJobsCollectRequest, GupyJobsCollectRequest
 from app.schemas.ranking import LeadRankingResponse
 from app.schemas.raw_event import RawEventBatchCreate, RawEventCreate, RawEventRead
 from app.schemas.signal import SignalCreate, SignalRead
@@ -29,7 +29,7 @@ from app.services.legal_ingestion import collect_generic_html_legal
 from app.services.news_ingestion import collect_generic_html_news
 from app.services.normalization import normalize_raw_event
 from app.services.payloads import to_db_payload
-from app.services.provider_ingestion import collect_generic_html_jobs, collect_gupy_jobs, collect_json_jobs, collect_jsonld_jobs
+from app.services.provider_ingestion import collect_generic_html_jobs, collect_greenhouse_jobs, collect_gupy_jobs, collect_json_jobs, collect_jsonld_jobs
 from app.services.scoring import score_company
 from app.services.watchlists import create_watchlist, list_watchlist_runs, list_watchlists, run_due_watchlists, run_watchlist
 from app.services.webhooks import create_webhook_target, deliver_lead_snapshot, dispatch_latest_leads, list_webhook_deliveries, list_webhook_targets
@@ -247,6 +247,14 @@ def collect_jobs_from_generic_html(payload: GenericHtmlJobsCollectRequest, db: S
 def collect_jobs_from_gupy(payload: GupyJobsCollectRequest, db: Session = Depends(get_db)):
     try:
         return collect_gupy_jobs(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post('/providers/greenhouse-jobs/collect', response_model=list[RawEventRead])
+def collect_jobs_from_greenhouse(payload: GreenhouseJobsCollectRequest, db: Session = Depends(get_db)):
+    try:
+        return collect_greenhouse_jobs(db, payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
