@@ -7,23 +7,33 @@ from sqlalchemy import text
 
 TEST_DB_DIR = Path(__file__).resolve().parents[1] / '.testdata'
 TEST_DB_DIR.mkdir(exist_ok=True)
-TEST_DB = TEST_DB_DIR / 'leadfind_test.db'
+TEST_DB = TEST_DB_DIR / f'leadfind_test_{os.getpid()}.db'
 os.environ['DATABASE_URL'] = f'sqlite:///{TEST_DB}'
 
 from alembic import command
 from alembic.config import Config
 from app.main import app
-from app.db.session import SessionLocal
+from app.db.session import SessionLocal, engine
 
 
 @pytest.fixture(scope='session', autouse=True)
 def prepare_db():
-    for path in [TEST_DB, TEST_DB.with_suffix('.db-shm'), TEST_DB.with_suffix('.db-wal')]:
+    engine.dispose()
+    for suffix in ['', '-shm', '-wal']:
+        path = Path(f'{TEST_DB}{suffix}')
         if path.exists():
             path.unlink()
+
     cfg = Config(str(Path(__file__).resolve().parents[1] / 'alembic.ini'))
+    cfg.set_main_option('sqlalchemy.url', f'sqlite:///{TEST_DB}')
     command.upgrade(cfg, 'head')
     yield
+
+    engine.dispose()
+    for suffix in ['', '-shm', '-wal']:
+        path = Path(f'{TEST_DB}{suffix}')
+        if path.exists():
+            path.unlink()
 
 
 @pytest.fixture(autouse=True)
