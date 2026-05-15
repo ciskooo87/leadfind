@@ -1,13 +1,17 @@
 import json
+from html import escape
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import ValidationError
-from fastapi.responses import Response
+from fastapi.responses import HTMLResponse, Response
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.db.models import Company, LeadSnapshot, RawEvent, Signal, Source, Watchlist, WebhookTarget
 from app.schemas.company import CompanyCreate, CompanyMatchRequest, CompanyRead
+from app.schemas.discovery import DiscoveryRunRequest, DiscoveryRunResponse
 from app.schemas.formal import FormalActsCollectRequest
 from app.schemas.lead import LeadExecutiveRead, LeadRead
 from app.schemas.legal import GenericHtmlLegalCollectRequest
@@ -38,6 +42,7 @@ from app.schemas.watchlist import (
 from app.schemas.webhook import WebhookDeliveryRead, WebhookTargetCreate, WebhookTargetRead
 from app.services.bootstrap import seed_sources
 from app.services.company_resolution import match_company
+from app.services.discovery import run_discovery
 from app.services.exporters import (
     executive_lead_to_csv_bytes,
     executive_lead_to_json_bytes,
@@ -150,6 +155,257 @@ def _get_latest_executive_snapshot(db: Session, company_id: int) -> LeadExecutiv
     signals = db.query(Signal).filter(Signal.company_id == company_id).order_by(Signal.detected_at.desc()).all()
     result = score_company(company, signals)
     return format_executive_lead(company, signals, result)
+
+
+def _format_dt(value) -> str:
+    if value is None:
+        return '—'
+    return value.strftime('%d/%m/%Y %H:%M')
+
+
+def _tier_badge_class(tier: str | None) -> str:
+    normalized = (tier or '').upper()
+    return {
+        'A': 'tier-a',
+        'B': 'tier-b',
+        'C': 'tier-c',
+    }.get(normalized, 'tier-d')
+
+
+@router.get('/', response_class=HTMLResponse)
+def home(
+    limit: int = Query(default=12, ge=1, le=50),
+    min_score: float | None = Query(default=None, ge=0, le=100),
+    tier: str | None = Query(default=None),
+    sector: str | None = Query(default=None),
+    match_quality: str | None = Query(default=None),
+    company_query: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    seed_sources(db)
+    ranking = rank_latest_leads(
+        db,
+        limit=limit,
+        min_score=min_score,
+        tier=tier,
+        sector=sector,
+        match_quality=match_quality,
+        company_query=company_query,
+    )
+
+    total_companies = db.query(func.count(Company.id)).scalar() or 0
+    total_signals = db.query(func.count(Signal.id)).scalar() or 0
+    active_watchlists = db.query(func.count(Watchlist.id)).filter(Watchlist.active.is_(True)).scalar() or 0
+    latest_snapshot = db.query(LeadSnapshot).order_by(LeadSnapshot.created_at.desc()).first()
+    top_score = max((item.score for item in ranking.items), default=0)
+
+    sectors = [
+        value for (value,) in db.query(Company.sector).filter(Company.sector.isnot(None)).distinct().order_by(Company.sector.asc()).all()
+        if value
+    ]
+    tiers = ['A', 'B', 'C', 'D']
+    match_options = ['alta', 'media', 'baixa', 'desconhecida']
+
+    def selected(value: str | None, current: str | None) -> str:
+        return ' selected' if (value or '') == (current or '') else ''
+
+    tier_options = ''.join([f"<option value=\"\"{selected('', tier)}>Todos</option>"] + [
+        f"<option value=\"{item}\"{selected(item, tier)}>{item}</option>" for item in tiers
+    ])
+    sector_options = ''.join([f"<option value=\"\"{selected('', sector)}>Todos</option>"] + [
+        f"<option value=\"{escape(item)}\"{selected(item, sector)}>{escape(item)}</option>" for item in sectors
+    ])
+    match_options_html = ''.join([f"<option value=\"\"{selected('', match_quality)}>Todos</option>"] + [
+        f"<option value=\"{item}\"{selected(item, match_quality)}>{item.title()}</option>" for item in match_options
+    ])
+
+    rows = []
+    for item in ranking.items:
+        company_name = escape(item.empresa)
+        sector_label = escape(item.setor or '—')
+        localizacao = escape(item.localizacao or '—')
+        match_label = escape((item.qualidade_match or 'desconhecida').title())
+        fontes = ''.join(f'<span class="chip subtle">{escape(source)}</span>' for source in item.fontes_utilizadas[:4]) or '<span class="muted">—</span>'
+        sinais = ''.join(f'<li>{escape(signal)}</li>' for signal in item.principais_sinais_detectados[:3]) or '<li class="muted">Sem sinais destacados</li>'
+        detail_href = f"/leads/{item.company_id}/executive/export?format=json"
+        rows.append(
+            f"""
+            <tr>
+              <td>
+                <div class=\"company-cell\"> 
+                  <strong>{company_name}</strong>
+                  <span class=\"muted\">#{item.company_id} · {sector_label}</span>
+                </div>
+              </td>
+              <td><span class=\"score-pill\">{item.score:.1f}</span></td>
+              <td><span class=\"badge {_tier_badge_class(item.lead_tier)}\">Tier {escape(item.lead_tier)}</span></td>
+              <td><span class=\"badge badge-match\">{match_label}</span></td>
+              <td>{escape(item.probabilidade_conversao)}</td>
+              <td>{escape(item.produto_mais_indicado)}</td>
+              <td><div class=\"chips\">{fontes}</div></td>
+              <td><ul class=\"signal-list\">{sinais}</ul></td>
+              <td>{localizacao}</td>
+              <td>{_format_dt(item.atualizado_em)}</td>
+              <td><a class=\"table-link\" href=\"{detail_href}\">Exportar JSON</a></td>
+            </tr>
+            """
+        )
+
+    query_params = urlencode({
+        key: value for key, value in {
+            'limit': limit,
+            'min_score': min_score,
+            'tier': tier,
+            'sector': sector,
+            'match_quality': match_quality,
+            'company_query': company_query,
+        }.items() if value not in (None, '')
+    })
+    export_json_href = f"/leads/ranking/export?format=json&{query_params}" if query_params else '/leads/ranking/export?format=json'
+    export_csv_href = f"/leads/ranking/export?format=csv&{query_params}" if query_params else '/leads/ranking/export?format=csv'
+
+    html = f"""
+    <!doctype html>
+    <html lang=\"pt-BR\">
+      <head>
+        <meta charset=\"utf-8\" />
+        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+        <title>Leadfind · Executive Radar</title>
+        <style>
+          :root {{ color-scheme: dark; --bg:#07111f; --panel:#0d1728; --panel-2:#13213a; --line:rgba(148,163,184,.18); --text:#e5eefb; --muted:#8ba0bf; --cyan:#55d6ff; --green:#46d39a; --yellow:#f5c451; --red:#ff7b7b; --shadow:0 24px 80px rgba(0,0,0,.35); }}
+          * {{ box-sizing:border-box; }}
+          body {{ margin:0; font-family:Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; background:radial-gradient(circle at top, #123055 0%, var(--bg) 48%); color:var(--text); }}
+          a {{ color:inherit; text-decoration:none; }}
+          .shell {{ max-width: 1480px; margin: 0 auto; padding: 32px 24px 56px; }}
+          .hero {{ display:flex; justify-content:space-between; gap:24px; align-items:flex-start; padding:28px; border:1px solid var(--line); border-radius:28px; background:linear-gradient(135deg, rgba(85,214,255,.16), rgba(19,33,58,.9)); box-shadow:var(--shadow); }}
+          .hero h1 {{ margin:0 0 10px; font-size:clamp(2rem, 3vw, 3.4rem); line-height:1.02; }}
+          .hero p {{ margin:0; max-width:780px; color:var(--muted); font-size:1rem; line-height:1.6; }}
+          .hero-actions {{ display:flex; gap:12px; flex-wrap:wrap; justify-content:flex-end; }}
+          .button {{ display:inline-flex; align-items:center; justify-content:center; padding:12px 16px; border-radius:14px; border:1px solid var(--line); background:rgba(13,23,40,.8); color:var(--text); font-weight:600; }}
+          .button.primary {{ background:linear-gradient(135deg, #19b9ff, #2176ff); border-color:transparent; }}
+          .stats {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin:22px 0; }}
+          .card {{ padding:20px; border-radius:22px; background:rgba(13,23,40,.92); border:1px solid var(--line); box-shadow:var(--shadow); }}
+          .kpi-label {{ display:block; font-size:.8rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:10px; }}
+          .kpi-value {{ font-size:2.1rem; font-weight:800; }}
+          .kpi-foot {{ margin-top:10px; color:var(--muted); font-size:.92rem; }}
+          .layout {{ display:grid; grid-template-columns: minmax(0, 1.9fr) minmax(320px, .9fr); gap:18px; align-items:start; }}
+          .toolbar {{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:12px; margin-bottom:18px; }}
+          label {{ display:flex; flex-direction:column; gap:8px; font-size:.85rem; color:var(--muted); }}
+          input, select {{ width:100%; border:1px solid var(--line); border-radius:14px; background:rgba(7,17,31,.88); color:var(--text); padding:12px 14px; outline:none; }}
+          .toolbar-actions {{ display:flex; gap:10px; align-items:flex-end; }}
+          .table-wrap {{ overflow:auto; border:1px solid var(--line); border-radius:22px; background:rgba(13,23,40,.96); }}
+          table {{ width:100%; border-collapse:collapse; min-width:1180px; }}
+          thead th {{ position:sticky; top:0; z-index:1; background:#122033; color:#9fb5d5; text-align:left; font-size:.78rem; letter-spacing:.05em; text-transform:uppercase; padding:14px 16px; border-bottom:1px solid var(--line); }}
+          tbody td {{ padding:16px; border-bottom:1px solid rgba(148,163,184,.08); vertical-align:top; }}
+          tbody tr:nth-child(even) {{ background:rgba(255,255,255,.018); }}
+          tbody tr:hover {{ background:rgba(85,214,255,.06); }}
+          .company-cell {{ display:flex; flex-direction:column; gap:4px; }}
+          .muted {{ color:var(--muted); }}
+          .score-pill {{ display:inline-flex; min-width:64px; justify-content:center; padding:8px 12px; border-radius:999px; background:rgba(70,211,154,.14); border:1px solid rgba(70,211,154,.3); color:#bdf6dd; font-weight:800; }}
+          .badge {{ display:inline-flex; padding:7px 10px; border-radius:999px; font-size:.82rem; font-weight:700; }}
+          .tier-a {{ background:rgba(70,211,154,.16); color:#bdf6dd; }} .tier-b {{ background:rgba(85,214,255,.14); color:#b6efff; }} .tier-c {{ background:rgba(245,196,81,.14); color:#ffe6a5; }} .tier-d {{ background:rgba(255,123,123,.14); color:#ffc1c1; }}
+          .badge-match {{ background:rgba(139,160,191,.12); color:#d9e7f8; }}
+          .chips {{ display:flex; gap:8px; flex-wrap:wrap; }}
+          .chip {{ padding:6px 10px; border-radius:999px; background:rgba(85,214,255,.12); color:#b9f1ff; font-size:.78rem; }}
+          .chip.subtle {{ background:rgba(139,160,191,.12); color:#dce8f8; }}
+          .signal-list {{ margin:0; padding-left:18px; color:#d6e1f0; display:grid; gap:6px; }}
+          .table-link {{ color:#8ddcff; font-weight:700; }}
+          .side-stack {{ display:grid; gap:18px; }}
+          .side-card h3, .main-card h2 {{ margin:0 0 14px; font-size:1.05rem; }}
+          .side-card p, .side-card li {{ color:var(--muted); line-height:1.55; }}
+          .list-clean {{ list-style:none; padding:0; margin:0; display:grid; gap:12px; }}
+          .list-clean li {{ padding:12px 0; border-bottom:1px solid rgba(148,163,184,.09); }}
+          .list-clean li:last-child {{ border-bottom:0; padding-bottom:0; }}
+          .mini-title {{ display:block; color:var(--text); font-weight:700; margin-bottom:4px; }}
+          @media (max-width: 1180px) {{ .stats, .toolbar, .layout {{ grid-template-columns:1fr 1fr; }} .layout {{ grid-template-columns:1fr; }} .hero {{ flex-direction:column; }} .hero-actions {{ justify-content:flex-start; }} }}
+          @media (max-width: 720px) {{ .shell {{ padding:18px 14px 34px; }} .stats, .toolbar {{ grid-template-columns:1fr; }} .toolbar-actions {{ flex-direction:column; align-items:stretch; }} .button {{ width:100%; }} }}
+        </style>
+      </head>
+      <body>
+        <div class=\"shell\">
+          <section class=\"hero\">
+            <div>
+              <span class=\"chip\">Executive lead intelligence</span>
+              <h1>Leadfind Radar</h1>
+              <p>Painel executivo para discovery, priorização e operação de watchlists. Leitura rápida de score, tier, qualidade de match, sinais e fontes em uma interface decente — em vez de parecer debug em produção.</p>
+            </div>
+            <div class=\"hero-actions\">
+              <a class=\"button primary\" href=\"/docs\">Abrir API Docs</a>
+              <a class=\"button\" href=\"{export_csv_href}\">Exportar CSV</a>
+              <a class=\"button\" href=\"{export_json_href}\">Exportar JSON</a>
+            </div>
+          </section>
+
+          <section class=\"stats\">
+            <article class=\"card\"><span class=\"kpi-label\">Empresas mapeadas</span><div class=\"kpi-value\">{total_companies}</div><div class=\"kpi-foot\">Base consolidada para geração de lead.</div></article>
+            <article class=\"card\"><span class=\"kpi-label\">Sinais capturados</span><div class=\"kpi-value\">{total_signals}</div><div class=\"kpi-foot\">Evidências úteis para score e abordagem.</div></article>
+            <article class=\"card\"><span class=\"kpi-label\">Top score atual</span><div class=\"kpi-value\">{top_score:.1f}</div><div class=\"kpi-foot\">Melhor oportunidade dentro do recorte atual.</div></article>
+            <article class=\"card\"><span class=\"kpi-label\">Watchlists ativas</span><div class=\"kpi-value\">{active_watchlists}</div><div class=\"kpi-foot\">Último snapshot: {_format_dt(latest_snapshot.created_at if latest_snapshot else None)}</div></article>
+          </section>
+
+          <div class=\"layout\">
+            <section class=\"main-card\">
+              <form class=\"card\" method=\"get\">
+                <h2>Ranking executivo</h2>
+                <div class=\"toolbar\">
+                  <label>Empresa<input type=\"text\" name=\"company_query\" value=\"{escape(company_query or '')}\" placeholder=\"Buscar por nome\" /></label>
+                  <label>Score mínimo<input type=\"number\" name=\"min_score\" min=\"0\" max=\"100\" step=\"1\" value=\"{'' if min_score is None else min_score}\" placeholder=\"0-100\" /></label>
+                  <label>Tier<select name=\"tier\">{tier_options}</select></label>
+                  <label>Setor<select name=\"sector\">{sector_options}</select></label>
+                  <label>Qualidade do match<select name=\"match_quality\">{match_options_html}</select></label>
+                  <label>Limite<input type=\"number\" name=\"limit\" min=\"1\" max=\"50\" value=\"{limit}\" /></label>
+                </div>
+                <div class=\"toolbar-actions\">
+                  <button class=\"button primary\" type=\"submit\">Aplicar filtros</button>
+                  <a class=\"button\" href=\"/\">Limpar</a>
+                </div>
+              </form>
+
+              <div class=\"table-wrap\">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Empresa</th><th>Score</th><th>Tier</th><th>Match</th><th>Conversão</th><th>Produto</th><th>Fontes</th><th>Sinais</th><th>Localização</th><th>Atualizado</th><th>Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {''.join(rows) if rows else '<tr><td colspan="11" class="muted">Nenhum lead encontrado para esse recorte.</td></tr>'}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <aside class=\"side-stack\">
+              <section class=\"card side-card\">
+                <h3>Discovery</h3>
+                <p>O fluxo de discovery continua pela API. Use os providers para puxar vagas, notícias, jurídico, reputação e fontes formais; depois gere os leads e volte aqui para priorizar.</p>
+                <div class=\"chips\">
+                  <span class=\"chip\">Jobs</span><span class=\"chip\">News</span><span class=\"chip\">Legal</span><span class=\"chip\">Reputation</span><span class=\"chip\">Formal acts</span><span class=\"chip\">Serasa</span>
+                </div>
+              </section>
+              <section class=\"card side-card\">
+                <h3>Fontes e operação</h3>
+                <ul class=\"list-clean\">
+                  <li><span class=\"mini-title\">/sources</span> catálogo das fontes com confiabilidade.</li>
+                  <li><span class=\"mini-title\">/watchlists</span> automação recorrente para ingestão.</li>
+                  <li><span class=\"mini-title\">/webhooks</span> entrega outbound dos leads qualificados.</li>
+                </ul>
+              </section>
+              <section class=\"card side-card\">
+                <h3>Leitura rápida</h3>
+                <ul class=\"list-clean\">
+                  <li><span class=\"mini-title\">Score</span> mede urgência/oportunidade consolidada.</li>
+                  <li><span class=\"mini-title\">Tier</span> facilita corte executivo e SLA comercial.</li>
+                  <li><span class=\"mini-title\">Qualidade do match</span> evita falso positivo travestido de lead quente.</li>
+                </ul>
+              </section>
+            </aside>
+          </div>
+        </div>
+      </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
 
 
 @router.get('/health')
