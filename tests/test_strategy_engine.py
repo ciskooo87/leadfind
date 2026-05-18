@@ -33,3 +33,16 @@ def test_strategy_engine_applies_market_signals_to_winner():
     assert infer_market_signals(request)
     assert result.winner.name in {item.name for item in result.top5}
     assert 'creator' in result.framing.lower() or 'sinais aplicados' in result.framing.lower()
+
+
+def test_strategy_engine_applies_external_context_weight():
+    request = StrategyAnalysisRequest(
+        available_capital_brl=2500,
+        target_brl=20000,
+        max_hours_per_day=2,
+        external_context={'doc_generation': 5, 'cash_pressure': 4},
+    )
+    result = analyze_strategy(request)
+
+    assert result.top5
+    assert any('documentação' in item.name.lower() or 'cobrança' in item.name.lower() for item in result.top5)

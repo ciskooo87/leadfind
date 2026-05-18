@@ -12,6 +12,7 @@ class StrategyAnalysisRequest(BaseModel):
     prioritize_automation: bool = True
     avoid_saturated: bool = True
     market_signals: list[str] = Field(default_factory=list)
+    external_context: dict[str, int] = Field(default_factory=dict)
 
 
 class OpportunityIdea(BaseModel):

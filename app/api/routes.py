@@ -12,6 +12,7 @@ from app.api.deps import get_db
 from app.db.models import Company, LeadSnapshot, RawEvent, Signal, Source, Watchlist, WebhookTarget
 from app.schemas.company import CompanyCreate, CompanyMatchRequest, CompanyRead
 from app.schemas.discovery import DiscoveryRunRequest, DiscoveryRunResponse
+from app.schemas.external_signal import ExternalMarketSignalCreate, ExternalMarketSignalRead
 from app.schemas.formal import FormalActsCollectRequest
 from app.schemas.lead import LeadExecutiveRead, LeadRead
 from app.schemas.legal import GenericHtmlLegalCollectRequest
@@ -53,6 +54,7 @@ from app.services.exporters import (
     strategy_run_to_json_bytes,
     strategy_run_to_markdown_bytes,
 )
+from app.services.external_signals import create_external_signal, external_signal_context, list_external_signals
 from app.services.formal_ingestion import collect_formal_acts_like
 from app.services.ingestion import ingest_raw_events
 from app.services.lead_formatter import format_executive_lead
@@ -348,8 +350,19 @@ def strategy_ui(
 
 
 @router.post('/strategy/analyze', response_model=StrategyAnalysisResponse)
-def strategy_analyze(request: StrategyAnalysisRequest):
-    return analyze_strategy(request)
+def strategy_analyze(request: StrategyAnalysisRequest, db: Session = Depends(get_db)):
+    enriched = request.model_copy(update={'external_context': request.external_context or external_signal_context(db)})
+    return analyze_strategy(enriched)
+
+
+@router.get('/strategy/signals/external', response_model=list[ExternalMarketSignalRead])
+def get_external_strategy_signals(active_only: bool = Query(default=False), db: Session = Depends(get_db)):
+    return list_external_signals(db, active_only=active_only)
+
+
+@router.post('/strategy/signals/external', response_model=ExternalMarketSignalRead)
+def create_external_strategy_signal(payload: ExternalMarketSignalCreate, db: Session = Depends(get_db)):
+    return create_external_signal(db, payload)
 
 
 @router.get('/strategy/runs', response_model=list[StrategyAnalysisRunRead])

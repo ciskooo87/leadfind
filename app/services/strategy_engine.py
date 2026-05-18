@@ -96,12 +96,16 @@ def infer_market_signals(request: StrategyAnalysisRequest) -> list[str]:
     return list(dict.fromkeys(inferred))
 
 
-def _signal_bonus(seed: IdeaSeed, active_signals: list[str]) -> int:
+def _signal_bonus(seed: IdeaSeed, active_signals: list[str], external_context: dict[str, int] | None = None) -> int:
     bonus = 0
+    external_context = external_context or {}
     for signal_key in active_signals:
         signal = MARKET_SIGNALS.get(signal_key)
         if signal and signal_key in seed.tags:
             bonus += signal.weight
+    for signal_key, weight in external_context.items():
+        if signal_key in seed.tags:
+            bonus += max(0, min(int(weight), 10))
     return bonus
 
 
@@ -115,7 +119,7 @@ def _asymmetry_score(seed: IdeaSeed, active_signals: list[str] | None = None, re
         score += 1.1
     if request.max_hours_per_day <= 2 and seed.ease >= 7:
         score += 1.2
-    score += _signal_bonus(seed, active_signals)
+    score += _signal_bonus(seed, active_signals, request.external_context)
     return int(round(score))
 
 

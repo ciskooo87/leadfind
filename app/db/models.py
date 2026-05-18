@@ -181,3 +181,17 @@ class StrategyAnalysisRun(Base):
     winner_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     top_opportunity_names: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive, index=True)
+
+
+class ExternalMarketSignal(Base):
+    __tablename__ = "external_market_signals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    signal_key: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    relevance_weight: Mapped[int] = mapped_column(Integer, default=1)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive, index=True)

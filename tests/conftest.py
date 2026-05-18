@@ -42,6 +42,7 @@ def reset_tables():
     try:
         db.execute(text('PRAGMA foreign_keys=OFF'))
         for table in [
+            'external_market_signals',
             'strategy_analysis_runs',
             'webhook_deliveries',
             'webhook_targets',
