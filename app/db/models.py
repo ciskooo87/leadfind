@@ -169,3 +169,15 @@ class WebhookDelivery(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive)
 
     webhook_target: Mapped[WebhookTarget] = relationship(back_populates="deliveries")
+
+
+class StrategyAnalysisRun(Base):
+    __tablename__ = "strategy_analysis_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False, default="Análise estratégica")
+    request_payload: Mapped[str] = mapped_column(Text, nullable=False)
+    response_payload: Mapped[str] = mapped_column(Text, nullable=False)
+    winner_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    top_opportunity_names: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow_naive, index=True)

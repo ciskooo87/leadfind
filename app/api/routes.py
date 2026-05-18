@@ -33,6 +33,7 @@ from app.schemas.serasa import SerasaCollectRequest
 from app.schemas.signal import SignalCreate, SignalRead
 from app.schemas.source import SourceRead
 from app.schemas.strategy import StrategyAnalysisRequest, StrategyAnalysisResponse
+from app.schemas.strategy_run import StrategyAnalysisRunCreate, StrategyAnalysisRunDetail, StrategyAnalysisRunRead
 from app.schemas.watchlist import (
     WatchlistCreate,
     WatchlistRead,
@@ -72,6 +73,7 @@ from app.services.reputation_ingestion import collect_generic_html_reputation, c
 from app.services.scoring import score_company
 from app.services.serasa_ingestion import collect_serasa_like
 from app.services.strategy_engine import analyze_strategy
+from app.services.strategy_runs import create_strategy_run, get_strategy_run, list_strategy_runs
 from app.services.watchlists import create_watchlist, list_watchlist_runs, list_watchlists, run_due_watchlists, run_watchlist
 from app.services.webhooks import create_webhook_target, deliver_lead_snapshot, dispatch_latest_leads, list_webhook_deliveries, list_webhook_targets
 
@@ -175,8 +177,23 @@ def _tier_badge_class(tier: str | None) -> str:
 
 
 @router.get('/', response_class=HTMLResponse)
-def home():
-    analysis = analyze_strategy(StrategyAnalysisRequest())
+def home(
+    capital: float = Query(default=2500, ge=0),
+    target: float = Query(default=20000, ge=1000),
+    hours: float = Query(default=2, gt=0, le=24),
+    market_scope: str = Query(default='Brasil + global'),
+    profile: str = Query(default='executor solo orientado a ativos'),
+    db: Session = Depends(get_db),
+):
+    request = StrategyAnalysisRequest(
+        available_capital_brl=capital,
+        target_brl=target,
+        max_hours_per_day=hours,
+        market_scope=market_scope,
+        profile=profile,
+    )
+    analysis = analyze_strategy(request)
+    recent_runs = list_strategy_runs(db)[:8]
 
     def badge(text: str) -> str:
         return f'<span class="badge">{escape(text)}</span>'
@@ -244,6 +261,10 @@ def home():
 
     matrix = analysis.matrix
     winner = analysis.winner
+    runs_html = ''.join(
+        f'<li><a href="/strategy/runs/{run.id}">{escape(run.title)}</a> · {escape(run.winner_name)} · {run.created_at.strftime("%d/%m %H:%M")}</li>'
+        for run in recent_runs
+    ) or '<li class="muted">Nenhuma análise salva ainda.</li>'
     html = f"""
     <!doctype html>
     <html lang="pt-BR">
@@ -252,77 +273,49 @@ def home():
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Leadfind · Opportunity Intelligence Engine</title>
         <style>
-          :root {{ color-scheme: dark; --bg:#08111f; --panel:#0e1828; --panel2:#121f35; --line:rgba(148,163,184,.16); --text:#e9f0fa; --muted:#91a4c0; --cyan:#61dafb; --green:#54d39a; --yellow:#f3c75f; --red:#ff8585; }}
-          * {{ box-sizing:border-box; }}
-          body {{ margin:0; font-family:Inter,system-ui,sans-serif; background:radial-gradient(circle at top,#12345b 0%,#08111f 45%); color:var(--text); }}
-          .shell {{ max-width:1440px; margin:0 auto; padding:28px 20px 56px; }}
-          .hero,.panel,.idea-card,.deep-card,.matrix-card {{ background:rgba(14,24,40,.92); border:1px solid var(--line); border-radius:24px; box-shadow:0 24px 70px rgba(0,0,0,.28); }}
-          .hero {{ padding:28px; display:grid; gap:16px; }}
-          .hero h1 {{ margin:0; font-size:clamp(2rem,4vw,4rem); line-height:1; }}
-          .hero p {{ margin:0; color:var(--muted); max-width:980px; line-height:1.6; }}
-          .hero-actions,.chips,.forecast,.metric-grid {{ display:flex; gap:10px; flex-wrap:wrap; }}
-          .cta {{ display:inline-flex; padding:12px 16px; border-radius:14px; background:linear-gradient(135deg,#1fc8ff,#2a6cff); color:white; font-weight:700; text-decoration:none; }}
-          .panel {{ margin-top:18px; padding:22px; }}
-          .section-title {{ margin:0 0 14px; font-size:1.2rem; }}
-          .grid-ideas {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }}
-          .idea-card,.deep-card,.matrix-card {{ padding:18px; }}
-          .idea-head {{ display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:10px; }}
-          .idea-card p,.deep-card p, li {{ color:#dbe5f4; line-height:1.55; }}
-          .muted,.why-now {{ color:var(--muted); }}
-          .pill {{ display:inline-flex; padding:6px 10px; border-radius:999px; font-size:.78rem; font-weight:700; }}
-          .pill.good {{ background:rgba(84,211,154,.16); color:#c3f7df; }} .pill.bad {{ background:rgba(255,133,133,.16); color:#ffd3d3; }}
-          .badge {{ display:inline-flex; padding:6px 10px; border-radius:999px; background:rgba(97,218,251,.12); color:#c7f3ff; font-size:.78rem; }}
-          .metric-grid span,.forecast span {{ border:1px solid var(--line); padding:8px 10px; border-radius:12px; color:var(--muted); }}
-          .top5 {{ display:grid; gap:16px; }}
-          .deep-rank {{ color:#8ccfff; font-size:.85rem; font-weight:800; text-transform:uppercase; letter-spacing:.08em; }}
-          .split,.matrix-grid {{ display:grid; grid-template-columns:1fr 1fr; gap:18px; }}
-          ul {{ margin:8px 0 14px; padding-left:18px; }}
-          .winner {{ border:1px solid rgba(97,218,251,.24); background:linear-gradient(135deg,rgba(97,218,251,.11),rgba(14,24,40,.95)); }}
-          @media (max-width: 980px) {{ .grid-ideas,.split,.matrix-grid {{ grid-template-columns:1fr; }} }}
+          :root {{ color-scheme: dark; --bg:#08111f; --panel:#0e1828; --line:rgba(148,163,184,.16); --text:#e9f0fa; --muted:#91a4c0; --cyan:#61dafb; --green:#54d39a; --red:#ff8585; }}
+          * {{ box-sizing:border-box; }} body {{ margin:0; font-family:Inter,system-ui,sans-serif; background:radial-gradient(circle at top,#12345b 0%,#08111f 45%); color:var(--text); }}
+          .shell {{ max-width:1440px; margin:0 auto; padding:28px 20px 56px; }} .hero,.panel,.idea-card,.deep-card,.matrix-card,.form-card {{ background:rgba(14,24,40,.92); border:1px solid var(--line); border-radius:24px; box-shadow:0 24px 70px rgba(0,0,0,.28); }}
+          .hero {{ padding:28px; display:grid; gap:16px; }} .hero h1 {{ margin:0; font-size:clamp(2rem,4vw,4rem); line-height:1; }} .hero p {{ margin:0; color:var(--muted); max-width:980px; line-height:1.6; }}
+          .layout-top,.hero-actions,.chips,.forecast,.metric-grid {{ display:flex; gap:10px; flex-wrap:wrap; }} .layout-top {{ align-items:start; justify-content:space-between; }}
+          .cta,button {{ display:inline-flex; padding:12px 16px; border-radius:14px; background:linear-gradient(135deg,#1fc8ff,#2a6cff); color:white; font-weight:700; text-decoration:none; border:0; cursor:pointer; }}
+          .panel {{ margin-top:18px; padding:22px; }} .section-title {{ margin:0 0 14px; font-size:1.2rem; }} .grid-ideas {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }} .idea-card,.deep-card,.matrix-card,.form-card {{ padding:18px; }}
+          .idea-head {{ display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:10px; }} .idea-card p,.deep-card p, li,label {{ color:#dbe5f4; line-height:1.55; }} .muted,.why-now {{ color:var(--muted); }}
+          .pill {{ display:inline-flex; padding:6px 10px; border-radius:999px; font-size:.78rem; font-weight:700; }} .pill.good {{ background:rgba(84,211,154,.16); color:#c3f7df; }} .pill.bad {{ background:rgba(255,133,133,.16); color:#ffd3d3; }}
+          .badge {{ display:inline-flex; padding:6px 10px; border-radius:999px; background:rgba(97,218,251,.12); color:#c7f3ff; font-size:.78rem; }} .metric-grid span,.forecast span {{ border:1px solid var(--line); padding:8px 10px; border-radius:12px; color:var(--muted); }}
+          .topbar {{ display:grid; grid-template-columns: minmax(0,1.35fr) minmax(320px,.65fr); gap:18px; }} .top5 {{ display:grid; gap:16px; }} .deep-rank {{ color:#8ccfff; font-size:.85rem; font-weight:800; text-transform:uppercase; letter-spacing:.08em; }}
+          .split,.matrix-grid,form {{ display:grid; grid-template-columns:1fr 1fr; gap:18px; }} input,textarea {{ width:100%; padding:12px 14px; border-radius:14px; border:1px solid var(--line); background:#0a1424; color:var(--text); }} textarea {{ min-height:84px; resize:vertical; }} ul {{ margin:8px 0 14px; padding-left:18px; }} .winner {{ border:1px solid rgba(97,218,251,.24); background:linear-gradient(135deg,rgba(97,218,251,.11),rgba(14,24,40,.95)); }}
+          a {{ color:#9adfff; text-decoration:none; }} @media (max-width: 980px) {{ .grid-ideas,.split,.matrix-grid,.topbar,form {{ grid-template-columns:1fr; }} }}
         </style>
       </head>
       <body>
         <div class="shell">
           <section class="hero">
             <div class="chips">{badge('2h por dia')}{badge('R$2.500 → R$20.000')}{badge('ativos + automação + recorrência')}</div>
-            <h1>Leadfind pivotado para opportunity intelligence</h1>
-            <p>{escape(analysis.framing)}</p>
-            <p>Em vez de continuar preso no radar antigo de leads B2B, o produto agora expõe o núcleo da ideia original: gerar, eliminar, rankear e aprofundar oportunidades assimétricas com lógica econômica e foco brutal em execução enxuta.</p>
-            <div class="hero-actions">
-              <a class="cta" href="/docs">Abrir API</a>
-              <a class="cta" href="/strategy/ui">Modo análise</a>
+            <div class="layout-top"><div><h1>Leadfind pivotado para opportunity intelligence</h1><p>{escape(analysis.framing)}</p><p>Agora com formulário real, histórico salvo e API persistente para analisar teses de negócio em vez de só expor uma resposta estática.</p></div><div class="hero-actions"><a class="cta" href="/docs">Abrir API</a><a class="cta" href="/strategy/ui">Modo análise</a></div></div>
+          </section>
+          <section class="panel topbar">
+            <div class="form-card">
+              <h2 class="section-title">Configurar análise</h2>
+              <form method="get" action="/strategy/ui">
+                <label>Capital disponível (R$)<input name="capital" type="number" step="100" value="{capital}" /></label>
+                <label>Meta (R$)<input name="target" type="number" step="1000" value="{target}" /></label>
+                <label>Horas por dia<input name="hours" type="number" step="0.5" value="{hours}" /></label>
+                <label>Escopo de mercado<input name="market_scope" value="{escape(market_scope)}" /></label>
+                <label style="grid-column:1/-1;">Perfil<textarea name="profile">{escape(profile)}</textarea></label>
+                <div><button type="submit">Recalcular</button></div>
+              </form>
+              <p class="muted">Para persistir via API: <code>POST /strategy/runs</code>.</p>
+            </div>
+            <div class="form-card">
+              <h2 class="section-title">Histórico salvo</h2>
+              <ul>{runs_html}</ul>
             </div>
           </section>
-          <section class="panel">
-            <h2 class="section-title">Parte 1 · 20 oportunidades resumidas</h2>
-            <div class="grid-ideas">{''.join(ideas_html)}</div>
-          </section>
-          <section class="panel">
-            <h2 class="section-title">Parte 2 e 3 · Top 5 com análise profunda</h2>
-            <div class="top5">{''.join(top5_html)}</div>
-          </section>
-          <section class="panel">
-            <h2 class="section-title">Parte 4 · Matriz</h2>
-            <div class="matrix-grid">
-              <article class="matrix-card"><h3>Baixo risco + alta escala</h3><ul>{''.join(f'<li>{escape(x)}</li>' for x in matrix.low_risk_high_scale)}</ul></article>
-              <article class="matrix-card"><h3>Baixo risco + baixa escala</h3><ul>{''.join(f'<li>{escape(x)}</li>' for x in matrix.low_risk_low_scale)}</ul></article>
-              <article class="matrix-card"><h3>Alto risco + alta escala</h3><ul>{''.join(f'<li>{escape(x)}</li>' for x in matrix.high_risk_high_scale)}</ul></article>
-              <article class="matrix-card"><h3>Oportunidades escondidas</h3><ul>{''.join(f'<li>{escape(x)}</li>' for x in matrix.hidden_opportunities)}</ul></article>
-            </div>
-          </section>
-          <section class="panel winner">
-            <h2 class="section-title">Parte 5 · Melhor assimetria entre risco, tempo e potencial</h2>
-            <h3>{escape(winner.name)}</h3>
-            <p><b>Por que vence:</b> {escape(winner.why_it_wins)}</p>
-            <p><b>Gargalo real:</b> {escape(winner.real_bottleneck)}</p>
-            <p><b>Como operar em 2h/dia:</b> {escape(' | '.join(winner.operating_in_2h))}</p>
-            <h4>Por que as outras perdem</h4>
-            <ul>{''.join(f'<li>{escape(x)}</li>' for x in winner.why_others_lose)}</ul>
-            <h4>Maior chance estatística de funcionar</h4>
-            <ul>{''.join(f'<li>{escape(x)}</li>' for x in winner.best_execution_path)}</ul>
-            <h4>Onde quase todo mundo erra</h4>
-            <ul>{''.join(f'<li>{escape(x)}</li>' for x in winner.common_mistakes)}</ul>
-          </section>
+          <section class="panel"><h2 class="section-title">Parte 1 · 20 oportunidades resumidas</h2><div class="grid-ideas">{''.join(ideas_html)}</div></section>
+          <section class="panel"><h2 class="section-title">Parte 2 e 3 · Top 5 com análise profunda</h2><div class="top5">{''.join(top5_html)}</div></section>
+          <section class="panel"><h2 class="section-title">Parte 4 · Matriz</h2><div class="matrix-grid"><article class="matrix-card"><h3>Baixo risco + alta escala</h3><ul>{''.join(f'<li>{escape(x)}</li>' for x in matrix.low_risk_high_scale)}</ul></article><article class="matrix-card"><h3>Baixo risco + baixa escala</h3><ul>{''.join(f'<li>{escape(x)}</li>' for x in matrix.low_risk_low_scale)}</ul></article><article class="matrix-card"><h3>Alto risco + alta escala</h3><ul>{''.join(f'<li>{escape(x)}</li>' for x in matrix.high_risk_high_scale)}</ul></article><article class="matrix-card"><h3>Oportunidades escondidas</h3><ul>{''.join(f'<li>{escape(x)}</li>' for x in matrix.hidden_opportunities)}</ul></article></div></section>
+          <section class="panel winner"><h2 class="section-title">Parte 5 · Melhor assimetria entre risco, tempo e potencial</h2><h3>{escape(winner.name)}</h3><p><b>Por que vence:</b> {escape(winner.why_it_wins)}</p><p><b>Gargalo real:</b> {escape(winner.real_bottleneck)}</p><p><b>Como operar em 2h/dia:</b> {escape(' | '.join(winner.operating_in_2h))}</p><h4>Por que as outras perdem</h4><ul>{''.join(f'<li>{escape(x)}</li>' for x in winner.why_others_lose)}</ul><h4>Maior chance estatística de funcionar</h4><ul>{''.join(f'<li>{escape(x)}</li>' for x in winner.best_execution_path)}</ul><h4>Onde quase todo mundo erra</h4><ul>{''.join(f'<li>{escape(x)}</li>' for x in winner.common_mistakes)}</ul></section>
         </div>
       </body>
     </html>
@@ -331,13 +324,38 @@ def home():
 
 
 @router.get('/strategy/ui', response_class=HTMLResponse)
-def strategy_ui():
-    return home()
+def strategy_ui(
+    capital: float = Query(default=2500, ge=0),
+    target: float = Query(default=20000, ge=1000),
+    hours: float = Query(default=2, gt=0, le=24),
+    market_scope: str = Query(default='Brasil + global'),
+    profile: str = Query(default='executor solo orientado a ativos'),
+    db: Session = Depends(get_db),
+):
+    return home(capital=capital, target=target, hours=hours, market_scope=market_scope, profile=profile, db=db)
 
 
 @router.post('/strategy/analyze', response_model=StrategyAnalysisResponse)
 def strategy_analyze(request: StrategyAnalysisRequest):
     return analyze_strategy(request)
+
+
+@router.get('/strategy/runs', response_model=list[StrategyAnalysisRunRead])
+def strategy_runs(db: Session = Depends(get_db)):
+    return list_strategy_runs(db)
+
+
+@router.post('/strategy/runs', response_model=StrategyAnalysisRunDetail)
+def create_strategy_run_route(payload: StrategyAnalysisRunCreate, db: Session = Depends(get_db)):
+    return create_strategy_run(db, payload)
+
+
+@router.get('/strategy/runs/{run_id}', response_model=StrategyAnalysisRunDetail)
+def get_strategy_run_route(run_id: int, db: Session = Depends(get_db)):
+    run = get_strategy_run(db, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail='Strategy run not found')
+    return run
 
 
 @router.get('/health')

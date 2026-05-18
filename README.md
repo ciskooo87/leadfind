@@ -110,11 +110,21 @@ curl -X POST http://127.0.0.1:8000/strategy/analyze \
 
 ## Estratégia de evolução
 Próximos passos coerentes com a ideia original:
-1. salvar análises e histórico de decisões
-2. suportar perfis e teses por usuário
-3. enriquecer oportunidades com sinais reais de mercado
-4. criar templates por perfil (solo, consultor, operador, técnico)
-5. conectar sinais externos para oportunidades em tempo real
+1. suportar perfis e teses por usuário
+2. enriquecer oportunidades com sinais reais de mercado
+3. criar templates por perfil (solo, consultor, operador, técnico)
+4. conectar sinais externos para oportunidades em tempo real
+5. transformar as melhores teses em playbooks executáveis
+6. adicionar comparação lado a lado entre análises salvas
+
+## Testes
+Rodar a suíte:
+```bash
+pytest -q
+```
+
+Inclui agora cobertura do strategy engine.
+des em tempo real
 6. transformar as melhores teses em playbooks executáveis
 
 ## Testes
