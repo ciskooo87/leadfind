@@ -4,7 +4,7 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import ValidationError
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -197,9 +197,11 @@ def home(
         market_scope=market_scope,
         profile=profile,
         market_signals=market_signals,
+        external_context=external_signal_context(db),
     )
     analysis = analyze_strategy(request)
     recent_runs = list_strategy_runs(db)[:8]
+    external_signals = list_external_signals(db, active_only=True)[:8]
     available_signal_keys = list(MARKET_SIGNALS.keys())
     applied_signals = list(dict.fromkeys((market_signals or []) + infer_market_signals(request)))
 
@@ -277,6 +279,10 @@ def home(
         f'<label><input type="checkbox" name="market_signals" value="{key}"{" checked" if key in applied_signals else ""} /> {escape(MARKET_SIGNALS[key].label)}</label>'
         for key in available_signal_keys
     )
+    external_signals_html = ''.join(
+        f'<li><strong>{escape(item.title)}</strong> · {escape(item.signal_key)} · peso {item.relevance_weight}<br><span class="muted">{escape(item.source_name)} — {escape(item.summary)}</span></li>'
+        for item in external_signals
+    ) or '<li class="muted">Nenhum sinal externo ativo.</li>'
     html = f"""
     <!doctype html>
     <html lang="pt-BR">
@@ -325,6 +331,7 @@ def home(
               <ul>{runs_html}</ul>
             </div>
           </section>
+          <section class="panel context-grid"><div class="form-card"><h2 class="section-title">Contexto externo ativo</h2><ul>{external_signals_html}</ul></div><div class="form-card"><h2 class="section-title">Adicionar sinal externo</h2><form method="get" action="/strategy/signals/external/add"><label>Signal key<input name="signal_key" value="doc_generation" /></label><label>Título<input name="title" value="Novo sinal" /></label><label>Fonte<input name="source_name" value="manual" /></label><label>URL<input name="source_url" value="https://example.com/signal" /></label><label>Peso<input name="relevance_weight" type="number" min="1" max="10" value="3" /></label><label style="grid-column:1/-1;">Resumo<textarea name="summary">Contexto externo relevante para reordenar a análise.</textarea></label><div><button type="submit">Salvar sinal</button></div></form></div></section>
           <section class="panel"><h2 class="section-title">Parte 1 · 20 oportunidades resumidas</h2><div class="grid-ideas">{''.join(ideas_html)}</div></section>
           <section class="panel"><h2 class="section-title">Parte 2 e 3 · Top 5 com análise profunda</h2><div class="top5">{''.join(top5_html)}</div></section>
           <section class="panel"><h2 class="section-title">Parte 4 · Matriz</h2><div class="matrix-grid"><article class="matrix-card"><h3>Baixo risco + alta escala</h3><ul>{''.join(f'<li>{escape(x)}</li>' for x in matrix.low_risk_high_scale)}</ul></article><article class="matrix-card"><h3>Baixo risco + baixa escala</h3><ul>{''.join(f'<li>{escape(x)}</li>' for x in matrix.low_risk_low_scale)}</ul></article><article class="matrix-card"><h3>Alto risco + alta escala</h3><ul>{''.join(f'<li>{escape(x)}</li>' for x in matrix.high_risk_high_scale)}</ul></article><article class="matrix-card"><h3>Oportunidades escondidas</h3><ul>{''.join(f'<li>{escape(x)}</li>' for x in matrix.hidden_opportunities)}</ul></article></div></section>
@@ -363,6 +370,31 @@ def get_external_strategy_signals(active_only: bool = Query(default=False), db: 
 @router.post('/strategy/signals/external', response_model=ExternalMarketSignalRead)
 def create_external_strategy_signal(payload: ExternalMarketSignalCreate, db: Session = Depends(get_db)):
     return create_external_signal(db, payload)
+
+
+@router.get('/strategy/signals/external/add')
+def create_external_strategy_signal_form(
+    signal_key: str = Query(...),
+    title: str = Query(...),
+    source_name: str = Query(...),
+    source_url: str = Query(default=''),
+    summary: str = Query(...),
+    relevance_weight: int = Query(default=1, ge=1, le=10),
+    db: Session = Depends(get_db),
+):
+    create_external_signal(
+        db,
+        ExternalMarketSignalCreate(
+            signal_key=signal_key,
+            title=title,
+            source_name=source_name,
+            source_url=source_url or None,
+            summary=summary,
+            relevance_weight=relevance_weight,
+            active=True,
+        ),
+    )
+    return RedirectResponse(url='/strategy/ui', status_code=303)
 
 
 @router.get('/strategy/runs', response_model=list[StrategyAnalysisRunRead])

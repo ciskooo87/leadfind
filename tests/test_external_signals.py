@@ -28,3 +28,17 @@ def test_external_market_signals_feed_strategy_analysis(client):
     body = analyzed.json()
     assert 'Sinais aplicados:' in body['framing']
     assert any('documentação' in item['name'].lower() or 'cobrança' in item['name'].lower() for item in body['top5'])
+
+
+def test_external_signal_form_and_ui_panel(client):
+    created = client.get('/strategy/signals/external/add', params={
+        'signal_key': 'cash_pressure',
+        'title': 'Pressão de caixa subindo',
+        'source_name': 'manual-ui',
+        'source_url': 'https://example.com/ui',
+        'summary': 'Indicador inserido pelo painel web.',
+        'relevance_weight': 3,
+    }, follow_redirects=True)
+    assert created.status_code == 200, created.text
+    assert 'Contexto externo ativo' in created.text
+    assert 'Pressão de caixa subindo' in created.text
