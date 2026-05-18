@@ -65,3 +65,26 @@ def test_external_signal_form_and_ui_panel(client):
     deleted = client.get('/strategy/signals/external/delete', params={'signal_id': signal['id']}, follow_redirects=True)
     assert deleted.status_code == 200
     assert 'Pressão de caixa editada' not in deleted.text
+
+
+def test_assisted_manual_ingest_preview_and_save(client):
+    preview = client.get('/strategy/ui', params={
+        'ingest_title': 'Nova onda de automação documental',
+        'ingest_url': 'https://example.com/news',
+        'ingest_text': 'Empresas estão acelerando documentação, contratos e OCR para reduzir tempo operacional.',
+    })
+    assert preview.status_code == 200, preview.text
+    assert 'Sugestão assistida' in preview.text
+    assert 'Salvar sugestão' in preview.text
+    assert 'doc_generation' in preview.text or 'Documentação automática' in preview.text
+
+    saved = client.get('/strategy/signals/external/ingest', params={
+        'signal_key': 'doc_generation',
+        'title': 'Nova onda de automação documental',
+        'source_name': 'example.com',
+        'source_url': 'https://example.com/news',
+        'summary': 'Empresas estão acelerando documentação, contratos e OCR para reduzir tempo operacional.',
+        'relevance_weight': 4,
+    }, follow_redirects=True)
+    assert saved.status_code == 200
+    assert 'Nova onda de automação documental' in saved.text
