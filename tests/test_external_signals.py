@@ -76,6 +76,7 @@ def test_assisted_manual_ingest_preview_and_save(client):
     assert preview.status_code == 200, preview.text
     assert 'Sugestão assistida' in preview.text
     assert 'Salvar sugestão' in preview.text
+    assert 'Alternativas' in preview.text
     assert 'doc_generation' in preview.text or 'Documentação automática' in preview.text
 
     saved = client.get('/strategy/signals/external/ingest', params={

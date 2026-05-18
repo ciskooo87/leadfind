@@ -54,7 +54,7 @@ from app.services.exporters import (
     strategy_run_to_json_bytes,
     strategy_run_to_markdown_bytes,
 )
-from app.services.external_signal_ingest import suggest_external_signal
+from app.services.external_signal_ingest import suggest_external_signal_details
 from app.services.external_signals import (
     create_external_signal,
     delete_external_signal,
@@ -218,7 +218,7 @@ def home(
     available_signal_keys = list(MARKET_SIGNALS.keys())
     applied_signals = list(dict.fromkeys((market_signals or []) + infer_market_signals(request)))
     editing_signal = get_external_signal(db, edit_signal_id) if edit_signal_id else None
-    ingest_preview = suggest_external_signal(ingest_text or '', source_url=ingest_url, title=ingest_title) if (ingest_title or ingest_url or ingest_text) else None
+    ingest_preview = suggest_external_signal_details(ingest_text or '', source_url=ingest_url, title=ingest_title) if (ingest_title or ingest_url or ingest_text) else None
 
     def badge(text: str) -> str:
         return f'<span class="badge">{escape(text)}</span>'
@@ -301,12 +301,12 @@ def home(
     ingest_preview_link = ''
     if ingest_preview:
         ingest_preview_link = '/strategy/signals/external/ingest?' + urlencode({
-            'signal_key': ingest_preview.signal_key,
-            'title': ingest_preview.title,
-            'source_name': ingest_preview.source_name,
-            'source_url': ingest_preview.source_url or '',
-            'summary': ingest_preview.summary,
-            'relevance_weight': ingest_preview.relevance_weight,
+            'signal_key': ingest_preview.primary.signal_key,
+            'title': ingest_preview.primary.title,
+            'source_name': ingest_preview.primary.source_name,
+            'source_url': ingest_preview.primary.source_url or '',
+            'summary': ingest_preview.primary.summary,
+            'relevance_weight': ingest_preview.primary.relevance_weight,
         })
     html = f"""
     <!doctype html>
@@ -357,7 +357,7 @@ def home(
             </div>
           </section>
           <section class="panel context-grid"><div class="form-card"><h2 class="section-title">Contexto externo ativo</h2><ul>{external_signals_html}</ul></div><div class="form-card"><h2 class="section-title">{escape('Editar sinal externo' if editing_signal else 'Adicionar sinal externo')}</h2><form method="get" action="{('/strategy/signals/external/update' if editing_signal else '/strategy/signals/external/add')}">{('<input type="hidden" name="signal_id" value="' + str(editing_signal.id) + '" />') if editing_signal else ''}<label>Signal key<input name="signal_key" value="{escape(editing_signal.signal_key if editing_signal else 'doc_generation')}" /></label><label>Título<input name="title" value="{escape(editing_signal.title if editing_signal else 'Novo sinal')}" /></label><label>Fonte<input name="source_name" value="{escape(editing_signal.source_name if editing_signal else 'manual')}" /></label><label>URL<input name="source_url" value="{escape(editing_signal.source_url or '' if editing_signal else 'https://example.com/signal')}" /></label><label>Peso<input name="relevance_weight" type="number" min="1" max="10" value="{editing_signal.relevance_weight if editing_signal else 3}" /></label><label style="grid-column:1/-1;">Resumo<textarea name="summary">{escape(editing_signal.summary if editing_signal else 'Contexto externo relevante para reordenar a análise.')}</textarea></label><div><button type="submit">{escape('Atualizar sinal' if editing_signal else 'Salvar sinal')}</button></div></form></div></section>
-          <section class="panel context-grid"><div class="form-card"><h2 class="section-title">Ingestão manual assistida</h2><form method="get" action="/strategy/ui"><label>Título<input name="ingest_title" value="{escape(ingest_title or '')}" /></label><label>URL<input name="ingest_url" value="{escape(ingest_url or '')}" /></label><label style="grid-column:1/-1;">Texto bruto<textarea name="ingest_text">{escape(ingest_text or '')}</textarea></label><div><button type="submit">Analisar contexto</button></div></form></div><div class="form-card"><h2 class="section-title">Sugestão assistida</h2>{(f'<p><b>Signal key sugerido:</b> {escape(ingest_preview.signal_key)}</p><p><b>Título:</b> {escape(ingest_preview.title)}</p><p><b>Fonte:</b> {escape(ingest_preview.source_name)}</p><p><b>Peso:</b> {ingest_preview.relevance_weight}</p><p class="muted">{escape(ingest_preview.summary)}</p><p><a href="{ingest_preview_link}">Salvar sugestão</a></p>' if ingest_preview else '<p class="muted">Cole um texto, notícia, nota ou contexto operacional para o sistema sugerir um sinal estruturado.</p>')}</div></section>
+          <section class="panel context-grid"><div class="form-card"><h2 class="section-title">Ingestão manual assistida</h2><form method="get" action="/strategy/ui"><label>Título<input name="ingest_title" value="{escape(ingest_title or '')}" /></label><label>URL<input name="ingest_url" value="{escape(ingest_url or '')}" /></label><label style="grid-column:1/-1;">Texto bruto<textarea name="ingest_text">{escape(ingest_text or '')}</textarea></label><div><button type="submit">Analisar contexto</button></div></form></div><div class="form-card"><h2 class="section-title">Sugestão assistida</h2>{(f'<p><b>Signal key sugerido:</b> {escape(ingest_preview.primary.signal_key)}</p><p><b>Título:</b> {escape(ingest_preview.primary.title)}</p><p><b>Fonte:</b> {escape(ingest_preview.primary.source_name)}</p><p><b>Peso:</b> {ingest_preview.primary.relevance_weight}</p><p class="muted">{escape(ingest_preview.primary.summary)}</p><p><b>Justificativa:</b> {escape(" | ".join(ingest_preview.reasons))}</p><p><b>Alternativas:</b> {escape(" | ".join(f"{alt.signal_key} ({alt.score})" for alt in ingest_preview.alternatives[1:]) or "nenhuma")}</p><p><a href="{ingest_preview_link}">Salvar sugestão</a></p>' if ingest_preview else '<p class="muted">Cole um texto, notícia, nota ou contexto operacional para o sistema sugerir um sinal estruturado.</p>')}</div></section>
           <section class="panel"><h2 class="section-title">Parte 1 · 20 oportunidades resumidas</h2><div class="grid-ideas">{''.join(ideas_html)}</div></section>
           <section class="panel"><h2 class="section-title">Parte 2 e 3 · Top 5 com análise profunda</h2><div class="top5">{''.join(top5_html)}</div></section>
           <section class="panel"><h2 class="section-title">Parte 4 · Matriz</h2><div class="matrix-grid"><article class="matrix-card"><h3>Baixo risco + alta escala</h3><ul>{''.join(f'<li>{escape(x)}</li>' for x in matrix.low_risk_high_scale)}</ul></article><article class="matrix-card"><h3>Baixo risco + baixa escala</h3><ul>{''.join(f'<li>{escape(x)}</li>' for x in matrix.low_risk_low_scale)}</ul></article><article class="matrix-card"><h3>Alto risco + alta escala</h3><ul>{''.join(f'<li>{escape(x)}</li>' for x in matrix.high_risk_high_scale)}</ul></article><article class="matrix-card"><h3>Oportunidades escondidas</h3><ul>{''.join(f'<li>{escape(x)}</li>' for x in matrix.hidden_opportunities)}</ul></article></div></section>
