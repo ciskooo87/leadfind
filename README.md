@@ -1,17 +1,47 @@
-# LeadFind
+# Leadfind
 
-Radar de Empresas com Necessidade de Capital de Giro.
+Engine de inteligência de oportunidades para encontrar caminhos assimétricos de crescimento com pouco capital, baixo tempo operacional e forte alavancagem via automação, IA e recorrência.
 
-## Objetivo
-Detectar empresas brasileiras com alta probabilidade de necessidade de capital de giro, antecipação de recebíveis, fomento mercantil, reestruturação financeira, troca de ERP financeiro e ganho de eficiência operacional.
+## Objetivo atual
+Transformar um briefing como:
+- capital disponível
+- meta financeira
+- limite diário de tempo
+- preferência por recorrência e automação
+- aversão a ideias saturadas
 
-## MVP inicial
-Este repositório começa com um backend FastAPI focado em:
-- cadastro e enriquecimento de empresas
+em uma análise estruturada com:
+- 20 oportunidades resumidas
+- filtragem rápida de ideias ruins
+- top 5 oportunidades com análise profunda
+- matriz de risco × escala
+- recomendação final única de melhor assimetria
+
+## Produto atual no repo
+O repositório agora entrega um MVP híbrido:
+
+### 1. Strategy engine
+Camada nova orientada à ideia original do projeto.
+
+Endpoints:
+- `GET /` → UI principal do motor estratégico
+- `GET /strategy/ui` → alias da UI
+- `POST /strategy/analyze` → análise estruturada em JSON
+
+### 2. Legacy lead radar
+O backend antigo de radar B2B foi preservado como base técnica e legado útil.
+Ele continua existindo com recursos de:
 - ingestão de sinais públicos
-- motor de score explicável
-- priorização de oportunidades
-- geração de lead estruturado
+- scoring explicável
+- ranking de leads
+- watchlists
+- webhooks
+
+Isso permite reaproveitamento futuro de:
+- coleta de sinais externos
+- ranking
+- exportação
+- infraestrutura de backend
 
 ## Stack
 - Python 3.12+
@@ -21,14 +51,13 @@ Este repositório começa com um backend FastAPI focado em:
 - SQLite para desenvolvimento inicial
 - Alembic para migrações
 
-## Estrutura
+## Estrutura principal
 - `app/api`: rotas HTTP
 - `app/core`: configuração
 - `app/db`: modelos e sessão
-- `app/services`: regra de negócio
 - `app/schemas`: contratos da API
-- `app/data`: taxonomias e pesos iniciais
-- `alembic`: migrações de banco
+- `app/services/strategy_engine.py`: motor estratégico
+- `app/services`: serviços legados e utilidades
 
 ## Rodando localmente
 ```bash
@@ -39,7 +68,29 @@ python scripts/migrate.py
 uvicorn app.main:app --reload
 ```
 
-## Endpoints atuais
+## Exemplo de uso da análise estratégica
+```bash
+curl -X POST http://127.0.0.1:8000/strategy/analyze \
+  -H 'content-type: application/json' \
+  -d '{
+    "available_capital_brl": 2500,
+    "target_brl": 20000,
+    "max_hours_per_day": 2,
+    "market_scope": "Brasil + global",
+    "profile": "executor solo orientado a ativos"
+  }'
+```
+
+## O que a resposta entrega
+- framing econômico da análise
+- ideias priorizadas por assimetria
+- top 5 detalhado
+- projeção de receita por janela
+- riscos e kill criteria
+- matriz estratégica
+- uma única recomendação vencedora
+
+## Endpoints legados preservados
 - `GET /health`
 - `GET /sources`
 - `POST /companies`
@@ -50,250 +101,26 @@ uvicorn app.main:app --reload
 - `POST /leads/generate/{company_id}`
 - `GET /leads/{company_id}`
 - `GET /leads/{company_id}/executive`
-
-## Pipeline atual do MVP
-1. cadastrar empresa
-2. registrar evento bruto vindo de uma fonte pública
-3. normalizar o evento bruto
-4. inferir um ou mais sinais de intenção
-5. gerar lead com score explicável
-
-## Importação em lote de vagas
-Via API:
-```bash
-POST /raw-events/batch
-```
-
-Via script:
-```bash
-python scripts/import_jobs.py sample_jobs.jsonl
-```
-
-Formato JSONL esperado: um evento por linha, com pelo menos:
-- `source_name`
-- `content`
-
-## Regras atuais do pipeline
-- evita reimportar `raw_events` duplicados por `source + external_id`
-- evita criar `signals` repetidos da mesma evidência
-- aplica peso de recência no score
-- adiciona bônus por evidência recente cruzada
-- aplica bônus multi-fonte entre jobs, notícias e jurídico
-- resolve empresa por CNPJ, domínio/site, nome e contexto geográfico
-
-## Endpoints adicionais
-- `POST /companies/match`
 - `GET /leads/ranking`
 - `GET /leads/ranking/export`
-- `GET /leads/{company_id}/executive/export`
-- `POST /providers/generic-html-jobs/collect`
-- `POST /providers/gupy-jobs/collect`
-- `POST /providers/greenhouse-jobs/collect`
-- `POST /providers/json-jobs/collect`
-- `POST /providers/jsonld-jobs/collect`
-- `POST /providers/generic-html-news/collect`
-- `POST /providers/generic-html-legal/collect`
-- `POST /providers/jusbrasil/collect`
-- `POST /providers/formal-acts/collect`
-- `POST /providers/serasa/collect`
-- `POST /providers/generic-html-reputation/collect`
-- `POST /providers/reclame-aqui/collect`
 - `GET /watchlists`
 - `POST /watchlists`
-- `POST /watchlists/{id}/run`
-- `GET /watchlists/{id}/runs`
-- `POST /watchlists/run-due`
-
-## Coleta via provider HTML genérico
-Esse provider permite apontar para uma página HTML com vagas e informar seletores CSS para extrair:
-- bloco da vaga
-- título
-- conteúdo
-- empresa
-- cidade/UF
-- link da vaga
-- site da empresa
-
-## Coleta via adapter Gupy
-Esse adapter faz uma leitura mais específica de páginas de vagas em padrão Gupy/semelhante, servindo como primeiro passo para conectores menos genéricos e mais precisos.
-
-Endpoint:
-- `POST /providers/gupy-jobs/collect`
-
-## Coleta via adapter Greenhouse
-Esse adapter faz leitura específica de páginas no padrão Greenhouse/boards corporativos, com extração básica de vaga e localização.
-
-Endpoint:
-- `POST /providers/greenhouse-jobs/collect`
-
-## Coleta via adapter Lever
-Esse adapter faz leitura específica de páginas no padrão Lever, com extração básica de vaga, localização e identificação da empresa pela URL.
-
-Endpoint:
-- `POST /providers/lever-jobs/collect`
-
-## Coleta via adapter Workday
-Esse adapter faz leitura específica de páginas no padrão Workday-like, com extração básica de vaga, localização e identificação da empresa pela URL.
-
-Endpoint:
-- `POST /providers/workday-jobs/collect`
-
-## Coleta via provider JSON
-Esse provider permite consumir feeds estruturados em JSON, informando paths como:
-- lista de itens
-- título
-- descrição
-- empresa
-- cidade/UF
-- URL da vaga
-- site da empresa
-- ID externo
-
-## Coleta via provider JSON-LD
-Esse provider extrai vagas de páginas que publicam `JobPosting` em `application/ld+json`, comum em páginas corporativas de carreira.
-
-## Coleta via provider de notícias
-Esse provider permite capturar notícias em HTML e transformá-las em sinais operacionais, como:
-- nova filial
-- novo centro de distribuição
-- expansão geográfica
-- crescimento acelerado
-- ampliação de frota
-
-## Coleta via adapter de notícias regionais
-Esse adapter faz leitura mais específica de portais/notícias regionais com estrutura repetível.
-
-Endpoint:
-- `POST /providers/regional-news/collect`
-
-## Coleta via provider jurídico
-Esse provider permite capturar eventos jurídicos em HTML e transformá-los em sinais como:
-- execução
-- ação de cobrança
-- trabalhistas
-- recuperação judicial
-- reestruturação financeira
-
-Útil para enriquecer o radar além de vagas.
-
-## Watchlists
-O sistema suporta watchlists persistidas para salvar configurações de coleta e executá-las sob demanda.
-
-Cada watchlist guarda:
-- tipo de fonte
-- nome da fonte
-- configuração JSON do coletor
-- status ativo/inativo
-- frequência em minutos (`schedule_minutes`)
-- timestamp da última execução
-
-Ao executar uma watchlist, o sistema agora:
-1. coleta eventos
-2. normaliza os sinais
-3. identifica empresas impactadas
-4. gera snapshots de lead automaticamente
-5. atualiza o ranking operacional
-6. grava histórico de execução com status, eventos, leads e empresas impactadas
-
-Para execução operacional fora da API:
-```bash
-python scripts/run_due_watchlists.py
-bash scripts/run_due_watchlists_once.sh
-```
-
-Exemplo de cron:
-```bash
-cat deploy/cron.example
-```
-
-## Exportação
-O sistema suporta exportação de:
-- ranking em JSON/CSV
-- lead executivo em JSON/CSV
-
-Via scripts:
-```bash
-python scripts/export_ranking.py --format csv --output exports/ranking.csv
-python scripts/export_executive_lead.py 1 --format json --output exports/lead-1.json
-```
-
-## Webhooks
-O sistema suporta targets de webhook para entrega automática ou manual de leads priorizados.
-
-Quando um novo lead snapshot é gerado, o sistema tenta entregar automaticamente para webhook targets ativos e elegíveis pelo critério de score/tier.
-
-Endpoints:
 - `GET /webhooks`
 - `POST /webhooks`
-- `GET /webhooks/{id}/deliveries`
-- `POST /webhooks/{id}/dispatch-latest`
-- `POST /webhooks/{id}/dispatch/{company_id}`
 
-## Migrações
-O schema agora é gerido por Alembic.
-
-Aplicar migrações:
-```bash
-python scripts/migrate.py
-```
-
-Validar schema local:
-```bash
-python scripts/check_migrations.py
-```
-
-Sempre que novas tabelas/colunas forem adicionadas ao domínio, uma nova revisão Alembic deve acompanhar a mudança.
+## Estratégia de evolução
+Próximos passos coerentes com a ideia original:
+1. salvar análises e histórico de decisões
+2. suportar perfis e teses por usuário
+3. enriquecer oportunidades com sinais reais de mercado
+4. criar templates por perfil (solo, consultor, operador, técnico)
+5. conectar sinais externos para oportunidades em tempo real
+6. transformar as melhores teses em playbooks executáveis
 
 ## Testes
-Rodar a suíte inicial:
+Rodar a suíte:
 ```bash
 pytest -q
 ```
 
-Cobertura atual inclui:
-- geração de lead executivo e ranking
-- watchlists com geração automática de leads
-- auto-dispatch de webhooks
-- adapters Gupy, Greenhouse, Lever e Workday
-- reputação, notícias regionais, Serasa e atos formais
-- entity resolution com aliases e domínios alternativos
-- auto-enriquecimento de identidade
-- auditoria e qualidade de match
-
-## Publicação do backend do Leadfind
-
-Bind recomendado:
-- `127.0.0.1:8021`
-
-Subida manual:
-```bash
-. .venv/bin/activate
-python scripts/migrate.py
-uvicorn app.main:app --host 127.0.0.1 --port 8021
-```
-
-Exemplo de serviço systemd:
-```bash
-cat deploy/leadfind.service.example
-```
-
-## UI publicada no Ironcore
-
-A UI operacional do Leadfinder foi publicada no projeto `Ironcore-web` em:
-- `https://ironcore.lat/leadfinder/`
-
-Ela consome este backend via HTTP interno.
-
-## Próximos passos
-1. criar adapters específicos adicionais por fonte real
-2. ampliar entity resolution com similaridade/fuzzy score
-3. painel operacional de monitoramento
-4. refinar ainda mais o score composto por fonte/sinal
-5. observabilidade e alertas operacionais
-6. retry/idempotência de webhook
-eal
-2. ampliar entity resolution com similaridade/fuzzy score
-3. painel operacional de monitoramento
-4. testes automatizados mais abrangentes
-5. observabilidade e alertas operacionais
-6. retry/idempotência de webhook
+Inclui agora cobertura do strategy engine.
