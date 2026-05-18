@@ -11,6 +11,7 @@ class StrategyAnalysisRequest(BaseModel):
     prioritize_recurrence: bool = True
     prioritize_automation: bool = True
     avoid_saturated: bool = True
+    market_signals: list[str] = Field(default_factory=list)
 
 
 class OpportunityIdea(BaseModel):
