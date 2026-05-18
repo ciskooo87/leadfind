@@ -50,6 +50,8 @@ from app.services.exporters import (
     executive_lead_to_json_bytes,
     ranking_to_csv_bytes,
     ranking_to_json_bytes,
+    strategy_run_to_json_bytes,
+    strategy_run_to_markdown_bytes,
 )
 from app.services.formal_ingestion import collect_formal_acts_like
 from app.services.ingestion import ingest_raw_events
@@ -356,6 +358,94 @@ def get_strategy_run_route(run_id: int, db: Session = Depends(get_db)):
     if not run:
         raise HTTPException(status_code=404, detail='Strategy run not found')
     return run
+
+
+@router.get('/strategy/runs/{run_id}/export')
+def export_strategy_run_route(
+    run_id: int,
+    format: str = Query(default='json', pattern='^(json|md)$'),
+    db: Session = Depends(get_db),
+):
+    run = get_strategy_run(db, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail='Strategy run not found')
+    if format == 'md':
+        return Response(
+            content=strategy_run_to_markdown_bytes(run),
+            media_type='text/markdown',
+            headers={'Content-Disposition': f'attachment; filename=strategy-run-{run_id}.md'},
+        )
+    return Response(
+        content=strategy_run_to_json_bytes(run),
+        media_type='application/json',
+        headers={'Content-Disposition': f'attachment; filename=strategy-run-{run_id}.json'},
+    )
+
+
+@router.get('/strategy/compare')
+def compare_strategy_runs(
+    run_ids: list[int] = Query(default=[]),
+    db: Session = Depends(get_db),
+):
+    runs = [run for run_id in run_ids if (run := get_strategy_run(db, run_id))]
+    return {
+        'items': [
+            {
+                'id': run.id,
+                'title': run.title,
+                'winner_name': run.winner_name,
+                'capital': run.request.available_capital_brl,
+                'target': run.request.target_brl,
+                'hours_per_day': run.request.max_hours_per_day,
+                'top5': [item.name for item in run.response.top5],
+                'best_execution_path': run.response.winner.best_execution_path,
+                'created_at': run.created_at,
+            }
+            for run in runs
+        ]
+    }
+
+
+@router.get('/strategy/compare/ui', response_class=HTMLResponse)
+def compare_strategy_runs_ui(
+    run_ids: list[int] = Query(default=[]),
+    db: Session = Depends(get_db),
+):
+    all_runs = list_strategy_runs(db)
+    selected = [run for run_id in run_ids if (run := get_strategy_run(db, run_id))]
+    options = ''.join(
+        f'<label><input type="checkbox" name="run_ids" value="{run.id}"{" checked" if run.id in run_ids else ""}> #{run.id} · {escape(run.title)} · {escape(run.winner_name)}</label>'
+        for run in all_runs[:20]
+    ) or '<p class="muted">Nenhuma análise salva.</p>'
+    columns = ''.join(
+        f"""
+        <article class="compare-card">
+          <h3>#{run.id} · {escape(run.title)}</h3>
+          <p><b>Winner:</b> {escape(run.winner_name)}</p>
+          <p><b>Capital:</b> R${run.request.available_capital_brl:,.0f}</p>
+          <p><b>Meta:</b> R${run.request.target_brl:,.0f}</p>
+          <p><b>Horas/dia:</b> {run.request.max_hours_per_day:g}</p>
+          <p><b>Top 5:</b> {escape(' | '.join(item.name for item in run.response.top5))}</p>
+          <p><b>Gargalo:</b> {escape(run.response.winner.real_bottleneck)}</p>
+          <p><b>Execução:</b> {escape(' | '.join(run.response.winner.best_execution_path))}</p>
+          <div class="chips"><a href="/strategy/runs/{run.id}/export?format=json">JSON</a><a href="/strategy/runs/{run.id}/export?format=md">Markdown</a></div>
+        </article>
+        """
+        for run in selected
+    ) or '<article class="compare-card"><p class="muted">Selecione 2 ou mais análises para comparar.</p></article>'
+    html = f"""
+    <!doctype html>
+    <html lang="pt-BR"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Leadfind · Comparador</title>
+    <style>
+    body {{ margin:0; font-family:Inter,system-ui,sans-serif; background:#08111f; color:#e9f0fa; }}
+    .shell {{ max-width:1400px; margin:0 auto; padding:24px; }} .panel,.compare-card {{ background:#0e1828; border:1px solid rgba(148,163,184,.16); border-radius:20px; padding:18px; }}
+    form,.grid,.chips {{ display:flex; gap:12px; flex-wrap:wrap; }} .grid {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; align-items:start; }}
+    label,a,p {{ color:#dbe5f4; }} a {{ color:#98e2ff; text-decoration:none; }} .muted {{ color:#91a4c0; }} button {{ padding:10px 14px; border:0; border-radius:12px; background:linear-gradient(135deg,#1fc8ff,#2a6cff); color:white; font-weight:700; cursor:pointer; }}
+    @media (max-width: 1000px) {{ .grid {{ grid-template-columns:1fr; }} }}
+    </style></head><body><div class="shell"><section class="panel"><h1>Comparador de análises</h1><form method="get" action="/strategy/compare/ui">{options}<div style="width:100%;"><button type="submit">Comparar</button></div></form></section><section class="grid" style="margin-top:16px;">{columns}</section></div></body></html>
+    """
+    return HTMLResponse(content=html)
 
 
 @router.get('/health')
