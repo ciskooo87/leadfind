@@ -15,6 +15,7 @@ class StrategyAnalysisRunRead(BaseModel):
     title: str
     winner_name: str
     top_opportunity_names: list[str]
+    applied_signals: list[str]
     created_at: datetime
 
 

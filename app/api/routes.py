@@ -74,7 +74,7 @@ from app.services.provider_ingestion import (
 from app.services.reputation_ingestion import collect_generic_html_reputation, collect_reclame_aqui_like
 from app.services.scoring import score_company
 from app.services.serasa_ingestion import collect_serasa_like
-from app.services.strategy_engine import analyze_strategy
+from app.services.strategy_engine import MARKET_SIGNALS, analyze_strategy, infer_market_signals
 from app.services.strategy_runs import create_strategy_run, get_strategy_run, list_strategy_runs
 from app.services.watchlists import create_watchlist, list_watchlist_runs, list_watchlists, run_due_watchlists, run_watchlist
 from app.services.webhooks import create_webhook_target, deliver_lead_snapshot, dispatch_latest_leads, list_webhook_deliveries, list_webhook_targets
@@ -185,6 +185,7 @@ def home(
     hours: float = Query(default=2, gt=0, le=24),
     market_scope: str = Query(default='Brasil + global'),
     profile: str = Query(default='executor solo orientado a ativos'),
+    market_signals: list[str] = Query(default=[]),
     db: Session = Depends(get_db),
 ):
     request = StrategyAnalysisRequest(
@@ -193,9 +194,12 @@ def home(
         max_hours_per_day=hours,
         market_scope=market_scope,
         profile=profile,
+        market_signals=market_signals,
     )
     analysis = analyze_strategy(request)
     recent_runs = list_strategy_runs(db)[:8]
+    available_signal_keys = list(MARKET_SIGNALS.keys())
+    applied_signals = list(dict.fromkeys((market_signals or []) + infer_market_signals(request)))
 
     def badge(text: str) -> str:
         return f'<span class="badge">{escape(text)}</span>'
@@ -264,9 +268,13 @@ def home(
     matrix = analysis.matrix
     winner = analysis.winner
     runs_html = ''.join(
-        f'<li><a href="/strategy/runs/{run.id}">{escape(run.title)}</a> · {escape(run.winner_name)} · {run.created_at.strftime("%d/%m %H:%M")}</li>'
+        f'<li><a href="/strategy/runs/{run.id}">{escape(run.title)}</a> · {escape(run.winner_name)} · {run.created_at.strftime("%d/%m %H:%M")} · sinais: {escape(", ".join(run.applied_signals) or "nenhum")}</li>'
         for run in recent_runs
     ) or '<li class="muted">Nenhuma análise salva ainda.</li>'
+    signal_inputs = ''.join(
+        f'<label><input type="checkbox" name="market_signals" value="{key}"{" checked" if key in applied_signals else ""} /> {escape(MARKET_SIGNALS[key].label)}</label>'
+        for key in available_signal_keys
+    )
     html = f"""
     <!doctype html>
     <html lang="pt-BR">
@@ -293,7 +301,7 @@ def home(
       <body>
         <div class="shell">
           <section class="hero">
-            <div class="chips">{badge('2h por dia')}{badge('R$2.500 → R$20.000')}{badge('ativos + automação + recorrência')}</div>
+            <div class="chips">{badge('2h por dia')}{badge('R$2.500 → R$20.000')}{badge('ativos + automação + recorrência')}{''.join(badge('sinal: ' + MARKET_SIGNALS[key].label) for key in applied_signals if key in MARKET_SIGNALS)}</div>
             <div class="layout-top"><div><h1>Leadfind pivotado para opportunity intelligence</h1><p>{escape(analysis.framing)}</p><p>Agora com formulário real, histórico salvo e API persistente para analisar teses de negócio em vez de só expor uma resposta estática.</p></div><div class="hero-actions"><a class="cta" href="/docs">Abrir API</a><a class="cta" href="/strategy/ui">Modo análise</a></div></div>
           </section>
           <section class="panel topbar">
@@ -305,6 +313,7 @@ def home(
                 <label>Horas por dia<input name="hours" type="number" step="0.5" value="{hours}" /></label>
                 <label>Escopo de mercado<input name="market_scope" value="{escape(market_scope)}" /></label>
                 <label style="grid-column:1/-1;">Perfil<textarea name="profile">{escape(profile)}</textarea></label>
+                <div style="grid-column:1/-1;"><div class="chips">{signal_inputs}</div></div>
                 <div><button type="submit">Recalcular</button></div>
               </form>
               <p class="muted">Para persistir via API: <code>POST /strategy/runs</code>.</p>
@@ -332,9 +341,10 @@ def strategy_ui(
     hours: float = Query(default=2, gt=0, le=24),
     market_scope: str = Query(default='Brasil + global'),
     profile: str = Query(default='executor solo orientado a ativos'),
+    market_signals: list[str] = Query(default=[]),
     db: Session = Depends(get_db),
 ):
-    return home(capital=capital, target=target, hours=hours, market_scope=market_scope, profile=profile, db=db)
+    return home(capital=capital, target=target, hours=hours, market_scope=market_scope, profile=profile, market_signals=market_signals, db=db)
 
 
 @router.post('/strategy/analyze', response_model=StrategyAnalysisResponse)

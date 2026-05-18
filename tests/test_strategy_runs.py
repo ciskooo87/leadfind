@@ -17,6 +17,7 @@ def test_create_and_fetch_strategy_run(client):
     body = created.json()
     assert body['title'] == 'Teste assimetria'
     assert body['winner_name'] == 'Agente de cobrança preventiva para PMEs'
+    assert body['applied_signals']
     run_id = body['id']
 
     listed = client.get('/strategy/runs')
@@ -24,6 +25,7 @@ def test_create_and_fetch_strategy_run(client):
     items = listed.json()
     assert len(items) == 1
     assert items[0]['id'] == run_id
+    assert items[0]['applied_signals']
 
     fetched = client.get(f'/strategy/runs/{run_id}')
     assert fetched.status_code == 200
