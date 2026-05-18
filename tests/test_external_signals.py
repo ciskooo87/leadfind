@@ -42,3 +42,26 @@ def test_external_signal_form_and_ui_panel(client):
     assert created.status_code == 200, created.text
     assert 'Contexto externo ativo' in created.text
     assert 'Pressão de caixa subindo' in created.text
+
+    listed = client.get('/strategy/signals/external')
+    signal = listed.json()[0]
+
+    edited = client.get('/strategy/signals/external/update', params={
+        'signal_id': signal['id'],
+        'signal_key': signal['signal_key'],
+        'title': 'Pressão de caixa editada',
+        'source_name': signal['source_name'],
+        'source_url': signal['source_url'] or '',
+        'summary': 'Indicador atualizado pela UI.',
+        'relevance_weight': 5,
+    }, follow_redirects=True)
+    assert edited.status_code == 200
+    assert 'Pressão de caixa editada' in edited.text
+
+    toggled = client.get('/strategy/signals/external/toggle', params={'signal_id': signal['id']}, follow_redirects=True)
+    assert toggled.status_code == 200
+    assert 'ativar' in toggled.text or 'inativo' in toggled.text
+
+    deleted = client.get('/strategy/signals/external/delete', params={'signal_id': signal['id']}, follow_redirects=True)
+    assert deleted.status_code == 200
+    assert 'Pressão de caixa editada' not in deleted.text

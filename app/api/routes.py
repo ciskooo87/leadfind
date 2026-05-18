@@ -12,7 +12,7 @@ from app.api.deps import get_db
 from app.db.models import Company, LeadSnapshot, RawEvent, Signal, Source, Watchlist, WebhookTarget
 from app.schemas.company import CompanyCreate, CompanyMatchRequest, CompanyRead
 from app.schemas.discovery import DiscoveryRunRequest, DiscoveryRunResponse
-from app.schemas.external_signal import ExternalMarketSignalCreate, ExternalMarketSignalRead
+from app.schemas.external_signal import ExternalMarketSignalCreate, ExternalMarketSignalRead, ExternalMarketSignalUpdate
 from app.schemas.formal import FormalActsCollectRequest
 from app.schemas.lead import LeadExecutiveRead, LeadRead
 from app.schemas.legal import GenericHtmlLegalCollectRequest
@@ -54,7 +54,15 @@ from app.services.exporters import (
     strategy_run_to_json_bytes,
     strategy_run_to_markdown_bytes,
 )
-from app.services.external_signals import create_external_signal, external_signal_context, list_external_signals
+from app.services.external_signals import (
+    create_external_signal,
+    delete_external_signal,
+    external_signal_context,
+    get_external_signal,
+    list_external_signals,
+    toggle_external_signal,
+    update_external_signal,
+)
 from app.services.formal_ingestion import collect_formal_acts_like
 from app.services.ingestion import ingest_raw_events
 from app.services.lead_formatter import format_executive_lead
@@ -188,6 +196,7 @@ def home(
     market_scope: str = Query(default='Brasil + global'),
     profile: str = Query(default='executor solo orientado a ativos'),
     market_signals: list[str] = Query(default=[]),
+    edit_signal_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
     request = StrategyAnalysisRequest(
@@ -201,9 +210,10 @@ def home(
     )
     analysis = analyze_strategy(request)
     recent_runs = list_strategy_runs(db)[:8]
-    external_signals = list_external_signals(db, active_only=True)[:8]
+    external_signals = list_external_signals(db, active_only=False)[:12]
     available_signal_keys = list(MARKET_SIGNALS.keys())
     applied_signals = list(dict.fromkeys((market_signals or []) + infer_market_signals(request)))
+    editing_signal = get_external_signal(db, edit_signal_id) if edit_signal_id else None
 
     def badge(text: str) -> str:
         return f'<span class="badge">{escape(text)}</span>'
@@ -280,9 +290,9 @@ def home(
         for key in available_signal_keys
     )
     external_signals_html = ''.join(
-        f'<li><strong>{escape(item.title)}</strong> · {escape(item.signal_key)} · peso {item.relevance_weight}<br><span class="muted">{escape(item.source_name)} — {escape(item.summary)}</span></li>'
+        f'<li><strong>{escape(item.title)}</strong> · {escape(item.signal_key)} · peso {item.relevance_weight} · {"ativo" if item.active else "inativo"}<br><span class="muted">{escape(item.source_name)} — {escape(item.summary)}</span><br><span><a href="/strategy/ui?edit_signal_id={item.id}">editar</a> · <a href="/strategy/signals/external/toggle?signal_id={item.id}">{"desativar" if item.active else "ativar"}</a> · <a href="/strategy/signals/external/delete?signal_id={item.id}">remover</a></span></li>'
         for item in external_signals
-    ) or '<li class="muted">Nenhum sinal externo ativo.</li>'
+    ) or '<li class="muted">Nenhum sinal externo cadastrado.</li>'
     html = f"""
     <!doctype html>
     <html lang="pt-BR">
@@ -331,7 +341,7 @@ def home(
               <ul>{runs_html}</ul>
             </div>
           </section>
-          <section class="panel context-grid"><div class="form-card"><h2 class="section-title">Contexto externo ativo</h2><ul>{external_signals_html}</ul></div><div class="form-card"><h2 class="section-title">Adicionar sinal externo</h2><form method="get" action="/strategy/signals/external/add"><label>Signal key<input name="signal_key" value="doc_generation" /></label><label>Título<input name="title" value="Novo sinal" /></label><label>Fonte<input name="source_name" value="manual" /></label><label>URL<input name="source_url" value="https://example.com/signal" /></label><label>Peso<input name="relevance_weight" type="number" min="1" max="10" value="3" /></label><label style="grid-column:1/-1;">Resumo<textarea name="summary">Contexto externo relevante para reordenar a análise.</textarea></label><div><button type="submit">Salvar sinal</button></div></form></div></section>
+          <section class="panel context-grid"><div class="form-card"><h2 class="section-title">Contexto externo ativo</h2><ul>{external_signals_html}</ul></div><div class="form-card"><h2 class="section-title">{escape('Editar sinal externo' if editing_signal else 'Adicionar sinal externo')}</h2><form method="get" action="{('/strategy/signals/external/update' if editing_signal else '/strategy/signals/external/add')}">{('<input type="hidden" name="signal_id" value="' + str(editing_signal.id) + '" />') if editing_signal else ''}<label>Signal key<input name="signal_key" value="{escape(editing_signal.signal_key if editing_signal else 'doc_generation')}" /></label><label>Título<input name="title" value="{escape(editing_signal.title if editing_signal else 'Novo sinal')}" /></label><label>Fonte<input name="source_name" value="{escape(editing_signal.source_name if editing_signal else 'manual')}" /></label><label>URL<input name="source_url" value="{escape(editing_signal.source_url or '' if editing_signal else 'https://example.com/signal')}" /></label><label>Peso<input name="relevance_weight" type="number" min="1" max="10" value="{editing_signal.relevance_weight if editing_signal else 3}" /></label><label style="grid-column:1/-1;">Resumo<textarea name="summary">{escape(editing_signal.summary if editing_signal else 'Contexto externo relevante para reordenar a análise.')}</textarea></label><div><button type="submit">{escape('Atualizar sinal' if editing_signal else 'Salvar sinal')}</button></div></form></div></section>
           <section class="panel"><h2 class="section-title">Parte 1 · 20 oportunidades resumidas</h2><div class="grid-ideas">{''.join(ideas_html)}</div></section>
           <section class="panel"><h2 class="section-title">Parte 2 e 3 · Top 5 com análise profunda</h2><div class="top5">{''.join(top5_html)}</div></section>
           <section class="panel"><h2 class="section-title">Parte 4 · Matriz</h2><div class="matrix-grid"><article class="matrix-card"><h3>Baixo risco + alta escala</h3><ul>{''.join(f'<li>{escape(x)}</li>' for x in matrix.low_risk_high_scale)}</ul></article><article class="matrix-card"><h3>Baixo risco + baixa escala</h3><ul>{''.join(f'<li>{escape(x)}</li>' for x in matrix.low_risk_low_scale)}</ul></article><article class="matrix-card"><h3>Alto risco + alta escala</h3><ul>{''.join(f'<li>{escape(x)}</li>' for x in matrix.high_risk_high_scale)}</ul></article><article class="matrix-card"><h3>Oportunidades escondidas</h3><ul>{''.join(f'<li>{escape(x)}</li>' for x in matrix.hidden_opportunities)}</ul></article></div></section>
@@ -351,9 +361,10 @@ def strategy_ui(
     market_scope: str = Query(default='Brasil + global'),
     profile: str = Query(default='executor solo orientado a ativos'),
     market_signals: list[str] = Query(default=[]),
+    edit_signal_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    return home(capital=capital, target=target, hours=hours, market_scope=market_scope, profile=profile, market_signals=market_signals, db=db)
+    return home(capital=capital, target=target, hours=hours, market_scope=market_scope, profile=profile, market_signals=market_signals, edit_signal_id=edit_signal_id, db=db)
 
 
 @router.post('/strategy/analyze', response_model=StrategyAnalysisResponse)
@@ -394,6 +405,51 @@ def create_external_strategy_signal_form(
             active=True,
         ),
     )
+    return RedirectResponse(url='/strategy/ui', status_code=303)
+
+
+@router.get('/strategy/signals/external/update')
+def update_external_strategy_signal_form(
+    signal_id: int = Query(...),
+    signal_key: str = Query(...),
+    title: str = Query(...),
+    source_name: str = Query(...),
+    source_url: str = Query(default=''),
+    summary: str = Query(...),
+    relevance_weight: int = Query(default=1, ge=1, le=10),
+    db: Session = Depends(get_db),
+):
+    updated = update_external_signal(
+        db,
+        signal_id,
+        ExternalMarketSignalUpdate(
+            signal_key=signal_key,
+            title=title,
+            source_name=source_name,
+            source_url=source_url or None,
+            summary=summary,
+            relevance_weight=relevance_weight,
+            active=get_external_signal(db, signal_id).active if get_external_signal(db, signal_id) else True,
+        ),
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail='External signal not found')
+    return RedirectResponse(url='/strategy/ui', status_code=303)
+
+
+@router.get('/strategy/signals/external/toggle')
+def toggle_external_strategy_signal_route(signal_id: int = Query(...), db: Session = Depends(get_db)):
+    toggled = toggle_external_signal(db, signal_id)
+    if not toggled:
+        raise HTTPException(status_code=404, detail='External signal not found')
+    return RedirectResponse(url='/strategy/ui', status_code=303)
+
+
+@router.get('/strategy/signals/external/delete')
+def delete_external_strategy_signal_route(signal_id: int = Query(...), db: Session = Depends(get_db)):
+    deleted = delete_external_signal(db, signal_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail='External signal not found')
     return RedirectResponse(url='/strategy/ui', status_code=303)
 
 

@@ -1,14 +1,10 @@
 from sqlalchemy.orm import Session
 
 from app.db.models import ExternalMarketSignal
-from app.schemas.external_signal import ExternalMarketSignalCreate, ExternalMarketSignalRead
+from app.schemas.external_signal import ExternalMarketSignalCreate, ExternalMarketSignalRead, ExternalMarketSignalUpdate
 
 
-def create_external_signal(db: Session, payload: ExternalMarketSignalCreate) -> ExternalMarketSignalRead:
-    signal = ExternalMarketSignal(**payload.model_dump())
-    db.add(signal)
-    db.commit()
-    db.refresh(signal)
+def _to_read(signal: ExternalMarketSignal) -> ExternalMarketSignalRead:
     return ExternalMarketSignalRead(
         id=signal.id,
         signal_key=signal.signal_key,
@@ -22,25 +18,55 @@ def create_external_signal(db: Session, payload: ExternalMarketSignalCreate) -> 
     )
 
 
+def create_external_signal(db: Session, payload: ExternalMarketSignalCreate) -> ExternalMarketSignalRead:
+    signal = ExternalMarketSignal(**payload.model_dump())
+    db.add(signal)
+    db.commit()
+    db.refresh(signal)
+    return _to_read(signal)
+
+
 def list_external_signals(db: Session, active_only: bool = False) -> list[ExternalMarketSignalRead]:
     query = db.query(ExternalMarketSignal)
     if active_only:
         query = query.filter(ExternalMarketSignal.active.is_(True))
     items = query.order_by(ExternalMarketSignal.created_at.desc()).all()
-    return [
-        ExternalMarketSignalRead(
-            id=item.id,
-            signal_key=item.signal_key,
-            title=item.title,
-            source_name=item.source_name,
-            source_url=item.source_url,
-            summary=item.summary,
-            relevance_weight=item.relevance_weight,
-            active=item.active,
-            created_at=item.created_at,
-        )
-        for item in items
-    ]
+    return [_to_read(item) for item in items]
+
+
+def get_external_signal(db: Session, signal_id: int) -> ExternalMarketSignalRead | None:
+    signal = db.get(ExternalMarketSignal, signal_id)
+    return _to_read(signal) if signal else None
+
+
+def update_external_signal(db: Session, signal_id: int, payload: ExternalMarketSignalUpdate) -> ExternalMarketSignalRead | None:
+    signal = db.get(ExternalMarketSignal, signal_id)
+    if not signal:
+        return None
+    for key, value in payload.model_dump().items():
+        setattr(signal, key, value)
+    db.commit()
+    db.refresh(signal)
+    return _to_read(signal)
+
+
+def toggle_external_signal(db: Session, signal_id: int) -> ExternalMarketSignalRead | None:
+    signal = db.get(ExternalMarketSignal, signal_id)
+    if not signal:
+        return None
+    signal.active = not signal.active
+    db.commit()
+    db.refresh(signal)
+    return _to_read(signal)
+
+
+def delete_external_signal(db: Session, signal_id: int) -> bool:
+    signal = db.get(ExternalMarketSignal, signal_id)
+    if not signal:
+        return False
+    db.delete(signal)
+    db.commit()
+    return True
 
 
 def external_signal_context(db: Session) -> dict[str, int]:
